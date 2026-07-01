@@ -7,7 +7,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Conexión con pool (Supabase Transaction Pooler, puerto 6543) para la app
+  // serverless en Vercel. Ver .env.example y README.md.
+  url       = env("DATABASE_URL")
+  // Conexión directa (Supabase, puerto 5432) usada solo por las migraciones.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Rol {

@@ -47,19 +47,49 @@ Abrir http://localhost:3000. Credenciales de demo (tras `db:seed`):
 | `npm run db:migrate` | Crea/aplica migraciones (`prisma migrate dev`) |
 | `npm run db:seed` | Carga datos de demo |
 
-## Despliegue en Vercel
+## Despliegue en Vercel + Supabase
 
-El proyecto ya está vinculado a Vercel y GitHub. Pasos:
+La app **no almacena archivos**: todos los datos (usuarios, cursos, rúbricas, evaluaciones, notas) viven en
+PostgreSQL, así que con Supabase como base de datos es suficiente. No necesitas Supabase Storage.
 
-1. En **Vercel → Project Settings → Environment Variables** agregar:
-   - `DATABASE_URL`: cadena de conexión a tu Postgres administrado (Neon, Vercel Postgres o Supabase).
-   - `NEXTAUTH_SECRET`: generar con `openssl rand -base64 32`.
-   - `NEXTAUTH_URL`: la URL pública del deployment (`https://<tu-proyecto>.vercel.app`).
-2. Antes del primer deploy (o después de cambiar `prisma/schema.prisma`), aplicar las migraciones a la base
-   de producción: `DATABASE_URL="<prod>" npx prisma migrate deploy`.
-3. Hacer push a la rama conectada — Vercel construye con `npm run build`, que ya incluye `prisma generate`.
-4. (Opcional) Correr `npm run db:seed` contra la base de producción solo si quieres datos de demo; en un
-   entorno real, el primer docente se crea desde `/registro` y carga sus propios estudiantes.
+### Paso 1 — Crear la base de datos en Supabase
+
+1. Crea un proyecto en [supabase.com](https://supabase.com) y elige una contraseña para la base de datos.
+2. Ve a **Project Settings → Database → Connection string** y copia **dos** cadenas:
+   - **Transaction pooler** (puerto `6543`) → será tu `DATABASE_URL`. Agrégale `?pgbouncer=true` al final.
+   - **Direct connection** (puerto `5432`) → será tu `DIRECT_URL`.
+
+   > Vercel es serverless: cada request abre una conexión nueva, por eso la app usa el *pooler* (6543). Las
+   > migraciones, en cambio, necesitan la conexión directa (5432). El `schema.prisma` ya está configurado con
+   > `url` + `directUrl` para esto.
+
+### Paso 2 — Aplicar las migraciones a Supabase
+
+Desde tu máquina, con las variables apuntando al proyecto Supabase:
+
+```bash
+DATABASE_URL="<transaction-pooler-6543>?pgbouncer=true" \
+DIRECT_URL="<direct-5432>" \
+npx prisma migrate deploy
+```
+
+### Paso 3 — Configurar Vercel
+
+En **Vercel → Project Settings → Environment Variables** agregar:
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | cadena Transaction pooler de Supabase (`...6543/postgres?pgbouncer=true`) |
+| `DIRECT_URL` | cadena Direct connection de Supabase (`...5432/postgres`) |
+| `NEXTAUTH_SECRET` | generar con `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | la URL pública del deployment (`https://<tu-proyecto>.vercel.app`) |
+
+### Paso 4 — Desplegar
+
+Hacer push a la rama conectada — Vercel construye con `npm run build`, que ya incluye `prisma generate`.
+
+(Opcional) Para cargar datos de demo en Supabase: `DATABASE_URL=... DIRECT_URL=... npm run db:seed`. En un
+entorno real no hace falta: el primer docente se crea desde `/registro` y carga sus propios estudiantes.
 
 ## Estructura del proyecto
 

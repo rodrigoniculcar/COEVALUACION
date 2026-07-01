@@ -177,11 +177,12 @@ npm run dev
 Credenciales de demo tras el seed: `docente@demo.edu` / `Demo1234` y estudiantes
 `nombre.apellido@demo.edu` / `Demo1234` (ver salida del script `db:seed`).
 
-### Despliegue en Vercel
+### Despliegue en Vercel + Supabase
 
-1. En el proyecto de Vercel (ya vinculado a este repo), agregar las variables de entorno `DATABASE_URL`
-   (Postgres administrado: Vercel Postgres, Neon o Supabase), `NEXTAUTH_SECRET` (`openssl rand -base64 32`)
-   y `NEXTAUTH_URL` (la URL pública del despliegue).
-2. El `build` (`package.json`) ya ejecuta `prisma generate` antes de `next build`.
-3. Antes del primer despliegue (o tras cambios de esquema) correr las migraciones contra la base de datos de
-   producción: `npx prisma migrate deploy` (recomendado para producción en vez de `db push`).
+La app no guarda archivos, solo datos relacionales, por lo que Supabase (PostgreSQL administrado) cubre toda
+la persistencia. Como Vercel es serverless, se usan dos conexiones de Supabase: el *Transaction pooler*
+(puerto 6543, `DATABASE_URL`) para la app y la *conexión directa* (puerto 5432, `DIRECT_URL`) para las
+migraciones. El `schema.prisma` ya declara `url` + `directUrl` para este esquema. Los pasos detallados están
+en el `README.md`; en resumen: configurar `DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_SECRET` y `NEXTAUTH_URL` en
+Vercel, correr `prisma migrate deploy` contra Supabase, y hacer push (el `build` ya ejecuta
+`prisma generate`).
