@@ -1,0 +1,223 @@
+// Modelo de datos - Sistema de Autoevaluación y Coevaluación grupal
+// Ver ARCHITECTURE.md para el diseño y las decisiones detrás de cada entidad.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  DOCENTE
+  ESTUDIANTE
+}
+
+enum EstadoPeriodo {
+  BORRADOR // el docente aún está configurando pesos/rúbrica
+  ABIERTO // estudiantes pueden autoevaluarse y coevaluar
+  CERRADO // se calculan y publican los resultados finales
+}
+
+enum TipoEvaluacion {
+  AUTOEVALUACION
+  COEVALUACION
+  DOCENTE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  rol          Rol
+  createdAt    DateTime @default(now())
+
+  cursosComoDocente Curso[]           @relation("DocenteCursos")
+  inscripciones     Inscripcion[]
+  membresias        MiembroGrupo[]
+  evaluacionesHechas   Evaluacion[]   @relation("Evaluador")
+  evaluacionesRecibidas Evaluacion[]  @relation("Evaluado")
+  resultados        Resultado[]
+}
+
+// Un curso pertenece a un docente y agrupa estudiantes, grupos, rúbricas y periodos.
+model Curso {
+  id        String   @id @default(cuid())
+  nombre    String
+  codigo    String   @unique
+  docenteId String
+  docente   User     @relation("DocenteCursos", fields: [docenteId], references: [id])
+  createdAt DateTime @default(now())
+
+  inscripciones Inscripcion[]
+  grupos        Grupo[]
+  rubricas      Rubrica[]
+  periodos      PeriodoEvaluacion[]
+
+  @@index([docenteId])
+}
+
+// Carga de alumnos a un curso (matrícula).
+model Inscripcion {
+  id           String   @id @default(cuid())
+  cursoId      String
+  estudianteId String
+  createdAt    DateTime @default(now())
+
+  curso      Curso @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  estudiante User  @relation(fields: [estudianteId], references: [id])
+
+  @@unique([cursoId, estudianteId])
+  @@index([estudianteId])
+}
+
+// Equipo de trabajo dentro de un curso.
+model Grupo {
+  id        String   @id @default(cuid())
+  cursoId   String
+  nombre    String
+  createdAt DateTime @default(now())
+
+  curso     Curso          @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  miembros  MiembroGrupo[]
+  evaluaciones Evaluacion[]
+  resultados   Resultado[]
+
+  @@unique([cursoId, nombre])
+}
+
+model MiembroGrupo {
+  id           String @id @default(cuid())
+  grupoId      String
+  estudianteId String
+
+  grupo      Grupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  estudiante User  @relation(fields: [estudianteId], references: [id])
+
+  @@unique([grupoId, estudianteId])
+}
+
+// Rúbrica reutilizable dentro de un curso, con criterios ponderados.
+model Rubrica {
+  id          String   @id @default(cuid())
+  cursoId     String
+  nombre      String
+  descripcion String?
+  escalaMin   Int      @default(1)
+  escalaMax   Int      @default(5)
+  createdAt   DateTime @default(now())
+
+  curso    Curso              @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  criterios CriterioRubrica[]
+  periodos  PeriodoEvaluacion[]
+}
+
+// Criterio individual de la rúbrica. `ponderacion` es el peso (%) de este
+// criterio dentro de la nota de UNA evaluación (auto/co/docente); la suma
+// de ponderaciones de los criterios de una rúbrica debe ser 100.
+model CriterioRubrica {
+  id          String @id @default(cuid())
+  rubricaId   String
+  nombre      String
+  descripcion String?
+  ponderacion Float
+  orden       Int    @default(0)
+
+  rubrica  Rubrica            @relation(fields: [rubricaId], references: [id], onDelete: Cascade)
+  detalles DetalleEvaluacion[]
+
+  @@index([rubricaId])
+}
+
+// Periodo de evaluación: define la ventana de tiempo, la rúbrica a usar y
+// los pesos relativos de autoevaluación / coevaluación / evaluación docente
+// que se combinan para la nota final (deben sumar 100).
+model PeriodoEvaluacion {
+  id          String        @id @default(cuid())
+  cursoId     String
+  rubricaId   String
+  nombre      String
+  fechaInicio DateTime
+  fechaFin    DateTime
+  pesoAutoevaluacion Float  @default(20)
+  pesoCoevaluacion   Float  @default(40)
+  pesoDocente        Float  @default(40)
+  estado      EstadoPeriodo @default(BORRADOR)
+  createdAt   DateTime      @default(now())
+
+  curso       Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  rubrica     Rubrica      @relation(fields: [rubricaId], references: [id])
+  evaluaciones Evaluacion[]
+  resultados   Resultado[]
+
+  @@index([cursoId])
+}
+
+// Una Evaluacion es un "formulario" de rúbrica completado por un evaluador
+// sobre un evaluado (puede ser el mismo, un compañero, o un estudiante
+// evaluado por el docente), dentro de un periodo y en el contexto de un grupo.
+model Evaluacion {
+  id          String         @id @default(cuid())
+  periodoId   String
+  tipo        TipoEvaluacion
+  evaluadorId String
+  evaluadoId  String
+  grupoId     String
+  comentario  String?
+  createdAt   DateTime       @default(now())
+
+  periodo   PeriodoEvaluacion   @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  evaluador User                @relation("Evaluador", fields: [evaluadorId], references: [id])
+  evaluado  User                @relation("Evaluado", fields: [evaluadoId], references: [id])
+  grupo     Grupo               @relation(fields: [grupoId], references: [id])
+  detalles  DetalleEvaluacion[]
+
+  // Un evaluador solo puede enviar una evaluación de cada tipo sobre un
+  // mismo evaluado dentro de un periodo (evita doble envío).
+  @@unique([periodoId, tipo, evaluadorId, evaluadoId])
+  @@index([periodoId, evaluadoId])
+}
+
+// Puntaje asignado a cada criterio dentro de una Evaluacion.
+model DetalleEvaluacion {
+  id          String @id @default(cuid())
+  evaluacionId String
+  criterioId   String
+  puntaje      Float
+
+  evaluacion Evaluacion      @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  criterio   CriterioRubrica @relation(fields: [criterioId], references: [id])
+
+  @@unique([evaluacionId, criterioId])
+}
+
+// Resultado final calculado (y cacheado) para un estudiante en un periodo.
+// Se recalcula cada vez que cambian las evaluaciones o al cerrar el periodo.
+model Resultado {
+  id          String   @id @default(cuid())
+  periodoId   String
+  estudianteId String
+  grupoId     String
+
+  notaAutoevaluacion Float?
+  notaCoevaluacion   Float?
+  notaDocente        Float?
+  notaFinal          Float
+
+  // Promedio por criterio (para detectar indicadores críticos) y texto de
+  // retroalimentación generado automáticamente. Se guardan como JSON para
+  // no tener que crear una tabla adicional por cada criterio.
+  detalleCriterios Json
+  retroalimentacion String
+  calculadoAt       DateTime @default(now())
+
+  periodo    PeriodoEvaluacion @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  estudiante User              @relation(fields: [estudianteId], references: [id])
+  grupo      Grupo             @relation(fields: [grupoId], references: [id])
+
+  @@unique([periodoId, estudianteId])
+  @@index([periodoId, grupoId])
+}
