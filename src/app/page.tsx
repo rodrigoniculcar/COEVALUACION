@@ -1,23 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getSesionActual } from "@/lib/session";
 
-export default async function Home() {
-  // La lectura de sesión se aísla en try/catch para que, si la configuración
-  // de auth aún no está lista, la landing igual se muestre en vez de caer con
-  // un "server-side exception". El redirect() debe quedar FUERA del try porque
-  // internamente Next lo implementa lanzando una excepción de control.
-  let session = null;
-  try {
-    session = await getSesionActual();
-  } catch {
-    session = null;
-  }
-
-  if (session?.user) {
-    redirect(session.user.rol === "DOCENTE" ? "/docente" : "/estudiante");
-  }
-
+// Página de inicio estática: no consulta sesión ni base de datos, por lo que
+// siempre se renderiza en Vercel aunque la auth o la DB no estén configuradas.
+// La redirección al panel según el rol se hace tras iniciar sesión (login).
+export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-8 px-6 text-center">
       <div>

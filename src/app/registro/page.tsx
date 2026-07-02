@@ -37,7 +37,8 @@ export default function RegistroPage() {
       router.push("/login");
       return;
     }
-    router.push("/");
+    // El registro público siempre crea una cuenta docente.
+    router.push("/docente");
     router.refresh();
   }
 

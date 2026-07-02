@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -30,7 +30,11 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    // Como la página de inicio ya no redirige, resolvemos aquí el destino
+    // según el rol del usuario recién autenticado.
+    const session = await getSession();
+    const destino = session?.user?.rol === "DOCENTE" ? "/docente" : "/estudiante";
+    router.push(destino);
     router.refresh();
   }
 
