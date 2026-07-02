@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireDocente } from "@/lib/session";
 import { requireCursoDelDocente } from "@/lib/cursos";
 import { manejarError } from "@/lib/api-helpers";
+import { generarPasswordTemporal, hashPassword } from "@/lib/passwords";
 
 const estudianteSchema = z.object({
   nombre: z.string().min(2).max(120),
@@ -16,10 +15,6 @@ const estudianteSchema = z.object({
 const cargaSchema = z.object({
   estudiantes: z.array(estudianteSchema).min(1).max(300),
 });
-
-function generarPasswordTemporal() {
-  return crypto.randomBytes(6).toString("base64url");
-}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -58,7 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       if (!usuario) {
         passwordTemporal = est.password ?? generarPasswordTemporal();
-        const passwordHash = await bcrypt.hash(passwordTemporal, 12);
+        const passwordHash = await hashPassword(passwordTemporal);
         usuario = await prisma.user.create({
           data: { nombre: est.nombre, email, passwordHash, rol: "ESTUDIANTE" },
         });

@@ -35,6 +35,9 @@ export const authOptions: AuthOptions = {
           where: { email: credentials.email.toLowerCase().trim() },
         });
         if (!user) return null;
+        // Cuenta desactivada por un administrador: no puede iniciar sesión,
+        // aunque la contraseña sea correcta.
+        if (!user.activo) return null;
 
         const passwordValida = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!passwordValida) return null;
@@ -59,7 +62,7 @@ export const authOptions: AuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.rol = token.rol as "DOCENTE" | "ESTUDIANTE";
+        session.user.rol = token.rol as "ADMINISTRADOR" | "DOCENTE" | "ESTUDIANTE";
       }
       return session;
     },

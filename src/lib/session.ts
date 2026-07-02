@@ -34,3 +34,10 @@ export async function requireUsuario() {
   if (!session?.user) throw new ErrorAcceso("No autenticado", 401);
   return session.user;
 }
+
+export async function requireAdministrador() {
+  const session = await getSesionActual();
+  if (!session?.user) throw new ErrorAcceso("No autenticado", 401);
+  if (session.user.rol !== "ADMINISTRADOR") throw new ErrorAcceso("Requiere rol administrador", 403);
+  return session.user;
+}

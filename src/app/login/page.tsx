@@ -33,8 +33,12 @@ export default function LoginPage() {
     // Como la página de inicio ya no redirige, resolvemos aquí el destino
     // según el rol del usuario recién autenticado.
     const session = await getSession();
-    const destino = session?.user?.rol === "DOCENTE" ? "/docente" : "/estudiante";
-    router.push(destino);
+    const destinoPorRol: Record<string, string> = {
+      ADMINISTRADOR: "/admin",
+      DOCENTE: "/docente",
+      ESTUDIANTE: "/estudiante",
+    };
+    router.push(destinoPorRol[session?.user?.rol ?? ""] ?? "/estudiante");
     router.refresh();
   }
 

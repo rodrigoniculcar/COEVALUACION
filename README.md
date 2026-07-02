@@ -37,6 +37,17 @@ Abrir http://localhost:3000. Credenciales de demo (tras `db:seed`):
 - Estudiantes: `ana.torres@demo.edu`, `luis.perez@demo.edu`, `camila.rojas@demo.edu`,
   `diego.soto@demo.edu`, `valentina.cruz@demo.edu`, `martin.ibanez@demo.edu` — todas con `Demo1234`.
 
+## Primer acceso en producción (Administrador)
+
+En cada build (incluido Vercel) se ejecuta `prisma/bootstrap-admin.ts`, que crea automáticamente **una cuenta
+Administrador y una cuenta Docente** si todavía no existen (es idempotente: si ya existen, no las toca). Las
+credenciales iniciales están definidas en ese archivo. Después de entrar por primera vez con cualquiera de
+las dos, **cambia la contraseña de inmediato** desde `PATCH /api/perfil/password` (ese valor inicial queda en
+el código fuente del repositorio, así que no debe usarse de forma permanente).
+
+Desde `/admin`, el Administrador puede crear más cuentas de docentes y estudiantes, activar/desactivar
+cualquier cuenta, y ver/matricular estudiantes en cualquier curso de la plataforma.
+
 ## Scripts
 
 | Script | Descripción |
@@ -46,6 +57,7 @@ Abrir http://localhost:3000. Credenciales de demo (tras `db:seed`):
 | `npm run db:push` | Sincroniza el esquema sin generar migración (prototipado rápido) |
 | `npm run db:migrate` | Crea/aplica migraciones (`prisma migrate dev`) |
 | `npm run db:seed` | Carga datos de demo |
+| `npm run db:bootstrap-admin` | Crea la cuenta Administrador y Docente iniciales (idempotente) |
 
 ## Despliegue en Vercel + Supabase
 

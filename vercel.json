@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "npx prisma generate && (npx prisma migrate deploy || echo 'AVISO: no se aplico la migracion (faltan DATABASE_URL/DIRECT_URL o son incorrectas). El sitio se despliega igual; revisa este log para confirmar que la migracion corrio.') && next build",
+  "buildCommand": "npx prisma generate && (npx prisma migrate deploy || echo 'AVISO: no se aplico la migracion (faltan DATABASE_URL/DIRECT_URL o son incorrectas). El sitio se despliega igual; revisa este log para confirmar que la migracion corrio.') && (npx tsx prisma/bootstrap-admin.ts || echo 'AVISO: no se pudieron crear las cuentas iniciales de administrador/docente. Revisa este log; probablemente la base de datos aun no esta disponible.') && next build",
   "installCommand": "npm install"
 }

@@ -15,6 +15,7 @@ datasource db {
 }
 
 enum Rol {
+  ADMINISTRADOR
   DOCENTE
   ESTUDIANTE
 }
@@ -37,6 +38,9 @@ model User {
   email        String   @unique
   passwordHash String
   rol          Rol
+  // El administrador puede desactivar una cuenta (docente o estudiante) sin
+  // borrarla; una cuenta inactiva no puede iniciar sesión (ver src/lib/auth.ts).
+  activo       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
   cursosComoDocente Curso[]           @relation("DocenteCursos")

@@ -1,0 +1,6 @@
+-- AlterEnum
+ALTER TYPE "Rol" ADD VALUE 'ADMINISTRADOR';
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "activo" BOOLEAN NOT NULL DEFAULT true;
+

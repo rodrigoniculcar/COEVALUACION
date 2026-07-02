@@ -9,8 +9,18 @@ propuesta.
 
 | Rol | Puede hacer |
 |---|---|
+| **Administrador** | Crear cuentas docente y estudiante directamente (`/admin`), sin pasar por el registro público; activar/desactivar cualquier cuenta; ver y matricular estudiantes en cualquier curso de la plataforma, sin importar el docente dueño. |
 | **Docente** | Crear cursos, cargar estudiantes (credenciales), definir equipos, configurar rúbricas ponderadas, crear periodos de evaluación con pesos auto/co/docente, evaluar el desempeño de cada estudiante, abrir/cerrar periodos, ver el panel de resultados. |
 | **Estudiante** | Iniciar sesión con las credenciales que le entrega el docente, autoevaluarse, coevaluar a cada integrante de su equipo bajo la misma rúbrica, ver sus propios resultados una vez cerrado el periodo. |
+
+El campo `User.activo` permite al administrador desactivar una cuenta sin borrarla: `authorize()` en
+`src/lib/auth.ts` rechaza el login si `activo = false`, aunque la contraseña sea correcta. Por diseño, no se
+puede desactivar una cuenta `ADMINISTRADOR` desde el panel (evita bloqueos accidentales de la administración).
+
+Las cuentas iniciales de Administrador y Docente se crean automáticamente en cada build de Vercel mediante
+`prisma/bootstrap-admin.ts` (idempotente: si la cuenta ya existe, no la modifica). Las credenciales de esas
+cuentas deben rotarse después del primer login (`PATCH /api/perfil/password`), ya que el valor inicial queda
+en el código fuente.
 
 Flujo de datos: `Curso → Inscripcion (matrícula) → Grupo/MiembroGrupo (equipos) → Rubrica/CriterioRubrica →
 PeriodoEvaluacion (pesos) → Evaluacion/DetalleEvaluacion (auto/co/docente) → Resultado (nota final + feedback)`.

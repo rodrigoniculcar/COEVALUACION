@@ -6,6 +6,9 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const rol = req.nextauth.token?.rol;
 
+    if (pathname.startsWith("/admin") && rol !== "ADMINISTRADOR") {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
     if (pathname.startsWith("/docente") && rol !== "DOCENTE") {
       return NextResponse.redirect(new URL("/", req.url));
     }
@@ -23,5 +26,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/docente/:path*", "/estudiante/:path*"],
+  matcher: ["/admin/:path*", "/docente/:path*", "/estudiante/:path*"],
 };
