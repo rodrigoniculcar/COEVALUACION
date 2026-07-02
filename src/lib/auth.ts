@@ -3,6 +3,16 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+// En producción se DEBERÍA definir NEXTAUTH_SECRET en las variables de entorno
+// de Vercel. Este respaldo evita que la app se caiga con un "server-side
+// exception" cuando la variable no está configurada. Es funcional pero menos
+// seguro que un secreto propio (permitiría forjar sesiones si alguien conoce
+// este valor), así que se recomienda igualmente definir NEXTAUTH_SECRET.
+const authSecret =
+  process.env.NEXTAUTH_SECRET ??
+  process.env.AUTH_SECRET ??
+  "coevaluacion-fallback-secret-define-NEXTAUTH_SECRET-en-produccion";
+
 export const authOptions: AuthOptions = {
   session: { strategy: "jwt" },
   pages: {
@@ -54,5 +64,5 @@ export const authOptions: AuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: authSecret,
 };

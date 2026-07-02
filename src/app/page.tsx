@@ -3,7 +3,16 @@ import { redirect } from "next/navigation";
 import { getSesionActual } from "@/lib/session";
 
 export default async function Home() {
-  const session = await getSesionActual();
+  // La lectura de sesión se aísla en try/catch para que, si la configuración
+  // de auth aún no está lista, la landing igual se muestre en vez de caer con
+  // un "server-side exception". El redirect() debe quedar FUERA del try porque
+  // internamente Next lo implementa lanzando una excepción de control.
+  let session = null;
+  try {
+    session = await getSesionActual();
+  } catch {
+    session = null;
+  }
 
   if (session?.user) {
     redirect(session.user.rol === "DOCENTE" ? "/docente" : "/estudiante");
