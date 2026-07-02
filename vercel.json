@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "prisma generate && next build",
+  "buildCommand": "npx prisma generate && (npx prisma migrate deploy || echo 'AVISO: no se aplico la migracion (faltan DATABASE_URL/DIRECT_URL o son incorrectas). El sitio se despliega igual; revisa este log para confirmar que la migracion corrio.') && next build",
   "installCommand": "npm install"
 }
