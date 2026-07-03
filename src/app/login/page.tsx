@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell>
+    <AuthShell imagenFondo="/login-bg.jpg">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Iniciar sesión</h1>
         <p className="mt-2 text-sm text-slate-500">Accede con tus credenciales de docente, estudiante o administrador.</p>

@@ -45,7 +45,7 @@ export default function RegistroPage() {
   }
 
   return (
-    <AuthShell>
+    <AuthShell imagenFondo="/registro-bg.jpg">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Crear cuenta docente</h1>
         <p className="mt-2 text-sm text-slate-500">

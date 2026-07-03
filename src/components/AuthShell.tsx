@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 
 const beneficios = [
   "Autoevaluación y coevaluación entre compañeros de equipo",
@@ -7,21 +8,35 @@ const beneficios = [
 ];
 
 // Layout compartido de las pantallas de acceso (login / registro): un panel
-// de marca a la izquierda (gradiente + resumen del producto) y el
-// formulario a la derecha. En pantallas angostas el panel de marca se
-// oculta y solo se ve el formulario centrado.
-export function AuthShell({ children }: { children: ReactNode }) {
+// de marca a la izquierda (foto + overlay de gradiente + resumen del
+// producto) y el formulario a la derecha. En pantallas angostas el panel de
+// marca se oculta y solo se ve el formulario centrado.
+export function AuthShell({
+  children,
+  imagenFondo,
+}: {
+  children: ReactNode;
+  imagenFondo: string;
+}) {
   return (
     <div className="flex min-h-screen bg-white">
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-600 via-brand-600 to-brand-700 p-12 text-white lg:flex">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-12 text-white lg:flex">
+        <Image
+          src={imagenFondo}
+          alt=""
+          fill
+          priority
+          className="object-cover"
+          sizes="50vw"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-700/90 via-brand-600/85 to-brand-700/95" />
         <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 -right-16 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.15)_1px,transparent_0)] bg-[length:24px_24px] opacity-30" />
 
         <div className="relative z-10 text-xl font-bold tracking-tight">Coevaluación</div>
 
         <div className="relative z-10 flex max-w-md flex-col gap-6">
-          <h1 className="text-4xl font-bold leading-tight">
+          <h1 className="text-4xl font-bold leading-tight drop-shadow-sm">
             Autoevaluación y Coevaluación grupal
           </h1>
           <p className="text-lg text-brand-50/90">
