@@ -49,8 +49,16 @@ async function main() {
     });
   }
 
+  // Reusa los dos primeros grupos existentes del curso (por si ya se
+  // renombraron al probar la edición de equipos) en vez de buscar por
+  // nombre exacto, para que correr el seed varias veces no cree duplicados.
+  const gruposExistentes = await prisma.grupo.findMany({
+    where: { cursoId: curso.id },
+    orderBy: { createdAt: "asc" },
+  });
+
   const grupoA =
-    (await prisma.grupo.findFirst({ where: { cursoId: curso.id, nombre: "Equipo A" } })) ??
+    gruposExistentes[0] ??
     (await prisma.grupo.create({
       data: {
         cursoId: curso.id,
@@ -60,7 +68,7 @@ async function main() {
     }));
 
   const grupoB =
-    (await prisma.grupo.findFirst({ where: { cursoId: curso.id, nombre: "Equipo B" } })) ??
+    gruposExistentes[1] ??
     (await prisma.grupo.create({
       data: {
         cursoId: curso.id,

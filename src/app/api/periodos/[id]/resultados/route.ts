@@ -37,16 +37,19 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       where: { periodoId: periodo.id },
       include: {
         estudiante: { select: { id: true, nombre: true, email: true } },
-        grupo: { select: { id: true, nombre: true } },
       },
     });
 
+    // grupoNombre/integrantesHistoricos vienen congelados en el propio
+    // Resultado (no de un join en vivo a Grupo), para que el reporte no
+    // cambie si el equipo se reorganiza después.
     const individuos = resultados.map((r) => ({
       estudianteId: r.estudianteId,
       nombre: r.estudiante.nombre,
       email: r.estudiante.email,
       grupoId: r.grupoId,
-      grupoNombre: r.grupo.nombre,
+      grupoNombre: r.grupoNombre,
+      integrantesHistoricos: r.integrantesHistoricos as unknown as string[],
       notaAutoevaluacion: r.notaAutoevaluacion,
       notaCoevaluacion: r.notaCoevaluacion,
       notaDocente: r.notaDocente,

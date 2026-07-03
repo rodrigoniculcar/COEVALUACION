@@ -215,6 +215,12 @@ model Resultado {
   notaDocente        Float?
   notaFinal          Float
 
+  // Foto histórica del equipo al momento del cálculo: si más adelante el
+  // docente renombra el grupo o cambia sus integrantes para un nuevo
+  // periodo, este reporte sigue mostrando el equipo tal como era entonces.
+  grupoNombre           String @default("")
+  integrantesHistoricos Json   @default("[]")
+
   // Promedio por criterio (para detectar indicadores críticos) y texto de
   // retroalimentación generado automáticamente. Se guardan como JSON para
   // no tener que crear una tabla adicional por cada criterio.

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { VolverLink } from "@/components/VolverLink";
 
 interface Rubrica {
   id: string;
@@ -33,6 +34,10 @@ const estadoColor: Record<Periodo["estado"], string> = {
   CERRADO: "bg-slate-800 text-white",
 };
 
+function aFechaInput(iso: string) {
+  return iso.slice(0, 10);
+}
+
 export default function PeriodosPage() {
   const { id } = useParams<{ id: string }>();
   const [rubricas, setRubricas] = useState<Rubrica[]>([]);
@@ -46,6 +51,19 @@ export default function PeriodosPage() {
   const [pesoDocente, setPesoDocente] = useState(40);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [edicion, setEdicion] = useState({
+    nombre: "",
+    rubricaId: "",
+    fechaInicio: "",
+    fechaFin: "",
+    pesoAutoevaluacion: 0,
+    pesoCoevaluacion: 0,
+    pesoDocente: 0,
+  });
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   async function cargarTodo() {
     const [resRub, resPer] = await Promise.all([
@@ -65,6 +83,7 @@ export default function PeriodosPage() {
   }, [id]);
 
   const sumaPesos = pesoAutoevaluacion + pesoCoevaluacion + pesoDocente;
+  const sumaPesosEdicion = edicion.pesoAutoevaluacion + edicion.pesoCoevaluacion + edicion.pesoDocente;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -112,10 +131,58 @@ export default function PeriodosPage() {
     cargarTodo();
   }
 
+  function iniciarEdicion(p: Periodo) {
+    setEditandoId(p.id);
+    setErrorEdicion(null);
+    setEdicion({
+      nombre: p.nombre,
+      rubricaId: p.rubrica.id,
+      fechaInicio: aFechaInput(p.fechaInicio),
+      fechaFin: aFechaInput(p.fechaFin),
+      pesoAutoevaluacion: p.pesoAutoevaluacion,
+      pesoCoevaluacion: p.pesoCoevaluacion,
+      pesoDocente: p.pesoDocente,
+    });
+  }
+
+  async function guardarEdicion(p: Periodo) {
+    setErrorEdicion(null);
+    if (Math.abs(sumaPesosEdicion - 100) > 0.01) {
+      setErrorEdicion(`Los pesos deben sumar 100 (actual: ${sumaPesosEdicion}).`);
+      return;
+    }
+
+    setGuardandoEdicion(true);
+    const res = await fetch(`/api/periodos/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombre: edicion.nombre,
+        rubricaId: edicion.rubricaId,
+        fechaInicio: new Date(edicion.fechaInicio).toISOString(),
+        fechaFin: new Date(edicion.fechaFin).toISOString(),
+        pesoAutoevaluacion: edicion.pesoAutoevaluacion,
+        pesoCoevaluacion: edicion.pesoCoevaluacion,
+        pesoDocente: edicion.pesoDocente,
+      }),
+    });
+    const data = await res.json();
+    setGuardandoEdicion(false);
+
+    if (!res.ok) {
+      setErrorEdicion(data.error ?? "No se pudo guardar el periodo.");
+      return;
+    }
+
+    setEditandoId(null);
+    cargarTodo();
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold">Periodos de evaluación</h1>
+        <VolverLink href={`/docente/cursos/${id}`} texto="Volver al curso" />
+        <h1 className="mt-2 text-2xl font-bold">Periodos de evaluación</h1>
         <p className="mt-1 text-slate-600">
           Cada periodo usa una rúbrica y define el peso de autoevaluación, coevaluación y evaluación docente (deben
           sumar 100%).
@@ -205,41 +272,145 @@ export default function PeriodosPage() {
       <div className="flex flex-col gap-4">
         {periodos.map((p) => (
           <div key={p.id} className="card flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="font-semibold">{p.nombre}</h2>
-                <p className="text-sm text-slate-500">
-                  Rúbrica: {p.rubrica.nombre} · Auto {p.pesoAutoevaluacion}% / Co {p.pesoCoevaluacion}% / Docente{" "}
-                  {p.pesoDocente}%
-                </p>
+            {editandoId === p.id ? (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="label">Nombre del periodo</label>
+                    <input
+                      className="input"
+                      value={edicion.nombre}
+                      onChange={(e) => setEdicion((prev) => ({ ...prev, nombre: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="label">
+                      Rúbrica {p.estado !== "BORRADOR" && <span className="text-xs text-amber-600">(solo editable en Borrador)</span>}
+                    </label>
+                    <select
+                      className="input"
+                      value={edicion.rubricaId}
+                      onChange={(e) => setEdicion((prev) => ({ ...prev, rubricaId: e.target.value }))}
+                      disabled={p.estado !== "BORRADOR"}
+                    >
+                      {rubricas.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <div>
+                    <label className="label">Fecha inicio</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={edicion.fechaInicio}
+                      onChange={(e) => setEdicion((prev) => ({ ...prev, fechaInicio: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Fecha fin</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={edicion.fechaFin}
+                      onChange={(e) => setEdicion((prev) => ({ ...prev, fechaFin: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="w-40">
+                    <label className="label">% Autoevaluación</label>
+                    <input
+                      type="number"
+                      className="input"
+                      value={edicion.pesoAutoevaluacion}
+                      onChange={(e) =>
+                        setEdicion((prev) => ({ ...prev, pesoAutoevaluacion: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  <div className="w-40">
+                    <label className="label">% Coevaluación</label>
+                    <input
+                      type="number"
+                      className="input"
+                      value={edicion.pesoCoevaluacion}
+                      onChange={(e) =>
+                        setEdicion((prev) => ({ ...prev, pesoCoevaluacion: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  <div className="w-40">
+                    <label className="label">% Docente</label>
+                    <input
+                      type="number"
+                      className="input"
+                      value={edicion.pesoDocente}
+                      onChange={(e) => setEdicion((prev) => ({ ...prev, pesoDocente: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <span
+                    className={sumaPesosEdicion === 100 ? "text-sm text-emerald-600" : "text-sm text-amber-600"}
+                  >
+                    Suma: {sumaPesosEdicion}%
+                  </span>
+                </div>
+                {errorEdicion && <p className="text-sm text-red-600">{errorEdicion}</p>}
+                <div className="flex gap-2">
+                  <button className="btn-primary" onClick={() => guardarEdicion(p)} disabled={guardandoEdicion}>
+                    {guardandoEdicion ? "Guardando..." : "Guardar"}
+                  </button>
+                  <button className="btn-secondary" onClick={() => setEditandoId(null)}>
+                    Cancelar
+                  </button>
+                </div>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${estadoColor[p.estado]}`}>
-                {estadoLabel[p.estado]}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {p.estado === "BORRADOR" && (
-                <button className="btn-primary" onClick={() => cambiarEstado(p.id, "ABIERTO")}>
-                  Abrir periodo
-                </button>
-              )}
-              {p.estado === "ABIERTO" && (
-                <button className="btn-danger" onClick={() => cambiarEstado(p.id, "CERRADO")}>
-                  Cerrar y calcular resultados
-                </button>
-              )}
-              {p.estado === "CERRADO" && (
-                <button className="btn-secondary" onClick={() => cambiarEstado(p.id, "ABIERTO")}>
-                  Reabrir periodo
-                </button>
-              )}
-              <Link href={`/docente/cursos/${id}/periodos/${p.id}/evaluar`} className="btn-secondary">
-                Evaluar estudiantes
-              </Link>
-              <Link href={`/docente/cursos/${id}/periodos/${p.id}/resultados`} className="btn-secondary">
-                Ver resultados
-              </Link>
-            </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-semibold">{p.nombre}</h2>
+                    <p className="text-sm text-slate-500">
+                      Rúbrica: {p.rubrica.nombre} · Auto {p.pesoAutoevaluacion}% / Co {p.pesoCoevaluacion}% / Docente{" "}
+                      {p.pesoDocente}%
+                    </p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${estadoColor[p.estado]}`}>
+                    {estadoLabel[p.estado]}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {p.estado === "BORRADOR" && (
+                    <button className="btn-primary" onClick={() => cambiarEstado(p.id, "ABIERTO")}>
+                      Abrir periodo
+                    </button>
+                  )}
+                  {p.estado === "ABIERTO" && (
+                    <button className="btn-danger" onClick={() => cambiarEstado(p.id, "CERRADO")}>
+                      Cerrar y calcular resultados
+                    </button>
+                  )}
+                  {p.estado === "CERRADO" && (
+                    <button className="btn-secondary" onClick={() => cambiarEstado(p.id, "ABIERTO")}>
+                      Reabrir periodo
+                    </button>
+                  )}
+                  <button className="btn-secondary" onClick={() => iniciarEdicion(p)}>
+                    Editar
+                  </button>
+                  <Link href={`/docente/cursos/${id}/periodos/${p.id}/evaluar`} className="btn-secondary">
+                    Evaluar estudiantes
+                  </Link>
+                  <Link href={`/docente/cursos/${id}/periodos/${p.id}/resultados`} className="btn-secondary">
+                    Ver resultados
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>

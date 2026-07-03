@@ -38,3 +38,17 @@ body {
 .label {
   @apply mb-1 block text-sm font-medium text-slate-700;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
+  }
+}

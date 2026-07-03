@@ -64,12 +64,21 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
         },
       });
 
+      // grupoId/grupoNombre/integrantesHistoricos solo se fijan al CREAR el
+      // Resultado (primera vez que se calcula para este estudiante en este
+      // periodo) y nunca se vuelven a tocar en `update`: así, si el docente
+      // reorganiza los equipos más adelante (para otro periodo), este
+      // reporte ya calculado sigue mostrando el equipo histórico real.
+      const integrantesHistoricos = grupo.miembros.map((m) => m.estudiante.nombre);
+
       const resultado = await prisma.resultado.upsert({
         where: { periodoId_estudianteId: { periodoId, estudianteId } },
         create: {
           periodoId,
           estudianteId,
           grupoId: grupo.id,
+          grupoNombre: grupo.nombre,
+          integrantesHistoricos: integrantesHistoricos as unknown as Prisma.InputJsonValue,
           notaAutoevaluacion: calculo.notaAutoevaluacion,
           notaCoevaluacion: calculo.notaCoevaluacion,
           notaDocente: calculo.notaDocente,
@@ -78,7 +87,6 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
           retroalimentacion: calculo.retroalimentacion,
         },
         update: {
-          grupoId: grupo.id,
           notaAutoevaluacion: calculo.notaAutoevaluacion,
           notaCoevaluacion: calculo.notaCoevaluacion,
           notaDocente: calculo.notaDocente,

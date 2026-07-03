@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { VolverLink } from "@/components/VolverLink";
 
 interface Criterio {
   id?: string;
@@ -79,7 +80,8 @@ export default function RubricasPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold">Rúbricas</h1>
+        <VolverLink href={`/docente/cursos/${id}`} texto="Volver al curso" />
+        <h1 className="mt-2 text-2xl font-bold">Rúbricas</h1>
         <p className="mt-1 text-slate-600">
           Define los criterios y su ponderación (deben sumar 100%) y la escala de puntaje a usar.
         </p>

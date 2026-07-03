@@ -10,7 +10,7 @@ propuesta.
 | Rol | Puede hacer |
 |---|---|
 | **Administrador** | Crear cuentas docente y estudiante directamente (`/admin`), sin pasar por el registro público; activar/desactivar cualquier cuenta; ver y matricular estudiantes en cualquier curso de la plataforma, sin importar el docente dueño. |
-| **Docente** | Crear cursos, cargar estudiantes (credenciales), definir equipos, configurar rúbricas ponderadas, crear periodos de evaluación con pesos auto/co/docente, evaluar el desempeño de cada estudiante, abrir/cerrar periodos, ver el panel de resultados. |
+| **Docente** | Crear cursos, cargar estudiantes (credenciales, incluida importación desde Excel/CSV), definir y **editar** equipos, configurar rúbricas ponderadas, crear y **editar** periodos de evaluación con pesos auto/co/docente, evaluar el desempeño de cada estudiante, abrir/cerrar periodos, restablecer contraseñas de estudiantes, ver y descargar el panel de resultados (PDF/Excel). |
 | **Estudiante** | Iniciar sesión con las credenciales que le entrega el docente, autoevaluarse, coevaluar a cada integrante de su equipo bajo la misma rúbrica, ver sus propios resultados una vez cerrado el periodo. |
 
 El campo `User.activo` permite al administrador desactivar una cuenta sin borrarla: `authorize()` en
@@ -118,11 +118,37 @@ marcar como "punto crítico" a los que caen bajo un umbral (60/100). Este mismo 
 equipo y por curso (promediando los resultados individuales) para el panel de resultados.
 
 **Retroalimentación automática.** `generarRetroalimentacion()` es una función determinística basada en
-reglas (mismo input → mismo output): identifica el criterio más débil y el más fuerte, arma un mensaje según
-el rango de la nota final, y lista los indicadores críticos con una sugerencia de mejora. Se implementó
-como reglas explícitas (no un LLM) para que sea auditable y reproducible; el diseño deja espacio para en el
-futuro reemplazar o enriquecer esa función con una llamada a un modelo de lenguaje (ej. Claude) que redacte
-el mensaje en lenguaje más natural a partir de los mismos datos estructurados.
+reglas (mismo input → mismo output). Cada criterio guarda, además del promedio combinado, el desglose por
+fuente (`promedioAuto`, `promedioCoevaluacion`, `promedioDocente`), lo que permite:
+- Para cada punto crítico (hasta 3): mostrar cómo lo calificó cada fuente y una sugerencia distinta según el
+  patrón detectado (el estudiante se autocalifica más alto que los demás, los compañeros lo ven peor que el
+  docente o viceversa, o las tres fuentes coinciden).
+- Para cada fortaleza (hasta 2, promedio ≥ 80): resaltar si hay consenso entre compañeros y docente.
+- Un plan de acción general al final del mensaje.
+
+Se implementó como reglas explícitas (no un LLM) para que sea auditable y reproducible; el diseño deja
+espacio para en el futuro reemplazar o enriquecer esa función con una llamada a un modelo de lenguaje (ej.
+Claude) que redacte el mensaje en lenguaje más natural a partir de los mismos datos estructurados.
+
+**Equipos editables + historial.** Los equipos (`Grupo`) se pueden renombrar y reasignar sus integrantes en
+cualquier momento (`PATCH /api/grupos/[id]`) porque la conformación de un equipo puede cambiar de un periodo
+de evaluación a otro. Para que esto no altere reportes ya calculados, `Resultado` guarda una foto congelada
+del equipo (`grupoNombre`, `integrantesHistoricos`) en el momento en que se crea (primera evaluación
+registrada para ese estudiante en ese periodo) y **nunca se vuelve a sobreescribir** en recálculos
+posteriores — así, aunque el docente reorganice los equipos para el siguiente periodo, el reporte de un
+periodo cerrado sigue mostrando el equipo real de ese momento.
+
+**Periodos editables.** El nombre, las fechas y los pesos de un periodo se pueden editar en cualquier
+momento; la rúbrica solo se puede cambiar mientras el periodo está en `BORRADOR`, ya que las evaluaciones
+registradas guardan referencias a los criterios de la rúbrica original y cambiarla después corrompería el
+cálculo (`PATCH /api/periodos/[id]`).
+
+**Reportes descargables.** El panel de resultados del docente incluye gráficos de barra, un radar
+(auto/coevaluación/docente por criterio) a nivel de curso y por estudiante, exportación a Excel de la tabla
+de resultados individuales (librería `xlsx`, ya usada para la importación de estudiantes) y un botón
+"Descargar reporte (PDF)" que usa la función de impresión del navegador con CSS `@media print` dedicado
+(oculta la navegación y botones, deja las gráficas y el detalle de cada estudiante listos para guardar como
+PDF).
 
 ## 5. User Journey simplificado
 

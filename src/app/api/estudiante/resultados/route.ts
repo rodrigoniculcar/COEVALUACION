@@ -15,7 +15,6 @@ export async function GET() {
       where: { estudianteId: estudiante.id, periodo: { estado: "CERRADO" } },
       include: {
         periodo: { include: { curso: true } },
-        grupo: { select: { nombre: true } },
       },
       orderBy: { calculadoAt: "desc" },
     });
@@ -25,7 +24,8 @@ export async function GET() {
       periodoNombre: r.periodo.nombre,
       cursoNombre: r.periodo.curso.nombre,
       estadoPeriodo: r.periodo.estado,
-      grupoNombre: r.grupo.nombre,
+      grupoNombre: r.grupoNombre,
+      integrantesHistoricos: r.integrantesHistoricos as unknown as string[],
       notaAutoevaluacion: r.notaAutoevaluacion,
       notaCoevaluacion: r.notaCoevaluacion,
       notaDocente: r.notaDocente,

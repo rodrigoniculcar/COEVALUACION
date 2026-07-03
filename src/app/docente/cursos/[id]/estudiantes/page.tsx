@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { VolverLink } from "@/components/VolverLink";
 
 interface Inscripcion {
   estudiante: { id: string; nombre: string; email: string };
@@ -134,7 +135,8 @@ export default function EstudiantesPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold">Carga de estudiantes</h1>
+        <VolverLink href={`/docente/cursos/${id}`} texto="Volver al curso" />
+        <h1 className="mt-2 text-2xl font-bold">Carga de estudiantes</h1>
         <p className="mt-1 text-slate-600">
           Ingresa un estudiante por línea con el formato <code>Nombre completo, correo@ejemplo.com</code>, o
           importa un archivo Excel/CSV. Si el correo no existe se crea una cuenta con contraseña temporal.

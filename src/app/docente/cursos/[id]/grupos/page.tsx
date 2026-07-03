@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { VolverLink } from "@/components/VolverLink";
 
 interface Estudiante {
   id: string;
@@ -22,6 +23,12 @@ export default function GruposPage() {
   const [nombre, setNombre] = useState("");
   const [seleccionados, setSeleccionados] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [nombreEdicion, setNombreEdicion] = useState("");
+  const [seleccionadosEdicion, setSeleccionadosEdicion] = useState<string[]>([]);
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   async function cargarTodo() {
     const [resEst, resGrupos] = await Promise.all([
@@ -70,13 +77,52 @@ export default function GruposPage() {
     cargarTodo();
   }
 
+  function iniciarEdicion(g: Grupo) {
+    setEditandoId(g.id);
+    setNombreEdicion(g.nombre);
+    setSeleccionadosEdicion(g.miembros.map((m) => m.estudiante.id));
+    setErrorEdicion(null);
+  }
+
+  function toggleSeleccionadoEdicion(estId: string) {
+    setSeleccionadosEdicion((prev) => (prev.includes(estId) ? prev.filter((x) => x !== estId) : [...prev, estId]));
+  }
+
+  async function guardarEdicion(grupoId: string) {
+    setErrorEdicion(null);
+    if (seleccionadosEdicion.length === 0) {
+      setErrorEdicion("El equipo debe tener al menos un integrante.");
+      return;
+    }
+    setGuardandoEdicion(true);
+    const res = await fetch(`/api/grupos/${grupoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre: nombreEdicion, estudianteIds: seleccionadosEdicion }),
+    });
+    const data = await res.json();
+    setGuardandoEdicion(false);
+
+    if (!res.ok) {
+      setErrorEdicion(data.error ?? "No se pudo guardar el equipo.");
+      return;
+    }
+    setEditandoId(null);
+    cargarTodo();
+  }
+
   const idsAsignados = new Set(grupos.flatMap((g) => g.miembros.map((m) => m.estudiante.id)));
 
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold">Equipos de trabajo</h1>
-        <p className="mt-1 text-slate-600">Agrupa a los estudiantes para la coevaluación entre pares.</p>
+        <VolverLink href={`/docente/cursos/${id}`} texto="Volver al curso" />
+        <h1 className="mt-2 text-2xl font-bold">Equipos de trabajo</h1>
+        <p className="mt-1 text-slate-600">
+          Agrupa a los estudiantes para la coevaluación entre pares. Puedes editar un equipo (nombre e
+          integrantes) cuando cambie la conformación para un nuevo periodo: los resultados ya calculados de
+          periodos anteriores conservan el equipo tal como era en ese momento.
+        </p>
       </div>
 
       <form onSubmit={crearGrupo} className="card flex flex-col gap-4">
@@ -109,17 +155,68 @@ export default function GruposPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {grupos.map((g) => (
           <div key={g.id} className="card">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">{g.nombre}</h2>
-              <button onClick={() => eliminarGrupo(g.id)} className="text-xs text-red-600 hover:underline">
-                Eliminar
-              </button>
-            </div>
-            <ul className="mt-2 text-sm text-slate-600">
-              {g.miembros.map((m) => (
-                <li key={m.estudiante.id}>{m.estudiante.nombre}</li>
-              ))}
-            </ul>
+            {editandoId === g.id ? (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className="label">Nombre del equipo</label>
+                  <input
+                    className="input"
+                    value={nombreEdicion}
+                    onChange={(e) => setNombreEdicion(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label">Integrantes</label>
+                  <div className="grid max-h-48 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                    {estudiantes.map((est) => (
+                      <label key={est.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={seleccionadosEdicion.includes(est.id)}
+                          onChange={() => toggleSeleccionadoEdicion(est.id)}
+                        />
+                        {est.nombre}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {errorEdicion && <p className="text-sm text-red-600">{errorEdicion}</p>}
+                <div className="flex gap-2">
+                  <button
+                    className="btn-primary"
+                    onClick={() => guardarEdicion(g.id)}
+                    disabled={guardandoEdicion}
+                  >
+                    {guardandoEdicion ? "Guardando..." : "Guardar"}
+                  </button>
+                  <button className="btn-secondary" onClick={() => setEditandoId(null)}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold">{g.nombre}</h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => iniciarEdicion(g)}
+                      className="text-xs text-brand-600 hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <button onClick={() => eliminarGrupo(g.id)} className="text-xs text-red-600 hover:underline">
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+                <ul className="mt-2 text-sm text-slate-600">
+                  {g.miembros.map((m) => (
+                    <li key={m.estudiante.id}>{m.estudiante.nombre}</li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         ))}
       </div>

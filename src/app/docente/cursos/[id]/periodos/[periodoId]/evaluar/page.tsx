@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { VolverLink } from "@/components/VolverLink";
 
 interface Criterio {
   id: string;
@@ -126,8 +127,11 @@ export default function EvaluarDocentePage() {
 
   if (periodo.estado !== "ABIERTO") {
     return (
-      <div className="card">
-        <p>Este periodo no está abierto ({periodo.estado}). Solo puedes evaluar mientras el periodo está abierto.</p>
+      <div className="flex flex-col gap-4">
+        <VolverLink href={`/docente/cursos/${id}/periodos`} texto="Volver a periodos" />
+        <div className="card">
+          <p>Este periodo no está abierto ({periodo.estado}). Solo puedes evaluar mientras el periodo está abierto.</p>
+        </div>
       </div>
     );
   }
@@ -135,7 +139,8 @@ export default function EvaluarDocentePage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold">Evaluación docente — {periodo.nombre}</h1>
+        <VolverLink href={`/docente/cursos/${id}/periodos`} texto="Volver a periodos" />
+        <h1 className="mt-2 text-2xl font-bold">Evaluación docente — {periodo.nombre}</h1>
         <p className="mt-1 text-slate-600">Selecciona un equipo y luego a cada estudiante para calificarlo.</p>
       </div>
 

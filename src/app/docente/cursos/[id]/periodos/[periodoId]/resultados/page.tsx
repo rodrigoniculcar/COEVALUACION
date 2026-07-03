@@ -1,11 +1,18 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { VolverLink } from "@/components/VolverLink";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,7 +23,11 @@ interface CriterioResultado {
   criterioId: string;
   nombre: string;
   promedio: number;
+  promedioAuto: number | null;
+  promedioCoevaluacion: number | null;
+  promedioDocente: number | null;
   esPuntoCritico: boolean;
+  esFortaleza: boolean;
 }
 
 interface Individuo {
@@ -42,6 +53,7 @@ interface Equipo {
 }
 
 interface Respuesta {
+  periodo: { nombre: string };
   resumenCurso: {
     totalEstudiantes: number;
     notaPromedio: number;
@@ -52,15 +64,95 @@ interface Respuesta {
 }
 
 export default function ResultadosDocentePage() {
-  const { periodoId } = useParams<{ id: string; periodoId: string }>();
+  const { id, periodoId } = useParams<{ id: string; periodoId: string }>();
   const [datos, setDatos] = useState<Respuesta | null>(null);
-  const [expandido, setExpandido] = useState<string | null>(null);
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [exportando, setExportando] = useState(false);
 
   useEffect(() => {
     fetch(`/api/periodos/${periodoId}/resultados`)
       .then((r) => r.json())
       .then(setDatos);
   }, [periodoId]);
+
+  function toggleExpandido(estudianteId: string) {
+    setExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(estudianteId)) next.delete(estudianteId);
+      else next.add(estudianteId);
+      return next;
+    });
+  }
+
+  function expandirTodos() {
+    if (!datos) return;
+    setExpandidos(new Set(datos.individuos.map((i) => i.estudianteId)));
+  }
+
+  function colapsarTodos() {
+    setExpandidos(new Set());
+  }
+
+  async function exportarExcel() {
+    if (!datos) return;
+    setExportando(true);
+    const XLSX = await import("xlsx");
+    const filas = datos.individuos.map((i) => ({
+      Estudiante: i.nombre,
+      Correo: i.email,
+      Equipo: i.grupoNombre,
+      Autoevaluación: i.notaAutoevaluacion ?? "",
+      Coevaluación: i.notaCoevaluacion ?? "",
+      Docente: i.notaDocente ?? "",
+      Final: Number(i.notaFinal.toFixed(1)),
+    }));
+    const hoja = XLSX.utils.json_to_sheet(filas);
+    hoja["!cols"] = [{ wch: 24 }, { wch: 28 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, "Resultados");
+    XLSX.writeFile(libro, `resultados-${datos.periodo.nombre.replace(/\s+/g, "-").toLowerCase()}.xlsx`);
+    setExportando(false);
+  }
+
+  const dataRadarCurso = useMemo(() => {
+    if (!datos) return [];
+    const acumulado = new Map<
+      string,
+      { nombre: string; auto: number; co: number; doc: number; nAuto: number; nCo: number; nDoc: number }
+    >();
+    for (const ind of datos.individuos) {
+      for (const c of ind.detalleCriterios) {
+        const actual = acumulado.get(c.criterioId) ?? {
+          nombre: c.nombre,
+          auto: 0,
+          co: 0,
+          doc: 0,
+          nAuto: 0,
+          nCo: 0,
+          nDoc: 0,
+        };
+        if (c.promedioAuto !== null) {
+          actual.auto += c.promedioAuto;
+          actual.nAuto += 1;
+        }
+        if (c.promedioCoevaluacion !== null) {
+          actual.co += c.promedioCoevaluacion;
+          actual.nCo += 1;
+        }
+        if (c.promedioDocente !== null) {
+          actual.doc += c.promedioDocente;
+          actual.nDoc += 1;
+        }
+        acumulado.set(c.criterioId, actual);
+      }
+    }
+    return Array.from(acumulado.values()).map((v) => ({
+      criterio: v.nombre,
+      Autoevaluación: v.nAuto ? Number((v.auto / v.nAuto).toFixed(1)) : 0,
+      Compañeros: v.nCo ? Number((v.co / v.nCo).toFixed(1)) : 0,
+      Docente: v.nDoc ? Number((v.doc / v.nDoc).toFixed(1)) : 0,
+    }));
+  }, [datos]);
 
   if (!datos) return <p className="text-slate-500">Cargando resultados...</p>;
 
@@ -76,12 +168,33 @@ export default function ResultadosDocentePage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-bold">Panel de resultados</h1>
-        <p className="mt-1 text-slate-600">
-          Vista consolidada por curso, equipo e individuo, con los indicadores más bajos y retroalimentación
-          automática.
-        </p>
+      <div className="no-print flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <VolverLink href={`/docente/cursos/${id}/periodos`} texto="Volver a periodos" />
+          <h1 className="mt-2 text-2xl font-bold">Panel de resultados</h1>
+          <p className="mt-1 text-slate-600">
+            Vista consolidada por curso, equipo e individuo, con los indicadores más bajos y retroalimentación
+            automática.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button className="btn-secondary" onClick={expandirTodos}>
+            Expandir todos
+          </button>
+          <button className="btn-secondary" onClick={colapsarTodos}>
+            Colapsar todos
+          </button>
+          <button className="btn-secondary" onClick={exportarExcel} disabled={exportando}>
+            {exportando ? "Generando..." : "Descargar Excel"}
+          </button>
+          <button className="btn-primary" onClick={() => window.print()}>
+            Descargar reporte (PDF)
+          </button>
+        </div>
+      </div>
+
+      <div className="hidden print:block">
+        <h1 className="text-2xl font-bold">Panel de resultados — {datos.periodo.nombre}</h1>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -110,6 +223,24 @@ export default function ResultadosDocentePage() {
               <Tooltip />
               <Bar dataKey="promedio" fill="#3457d5" radius={[0, 4, 4, 0]} />
             </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2 className="font-semibold">Perfil del curso por criterio (auto / compañeros / docente)</h2>
+        <div className="mt-4 h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart data={dataRadarCurso}>
+              <PolarGrid />
+              <PolarAngleAxis dataKey="criterio" tick={{ fontSize: 11 }} />
+              <PolarRadiusAxis domain={[0, 100]} />
+              <Radar name="Autoevaluación" dataKey="Autoevaluación" stroke="#3457d5" fill="#3457d5" fillOpacity={0.15} />
+              <Radar name="Compañeros" dataKey="Compañeros" stroke="#10b981" fill="#10b981" fillOpacity={0.15} />
+              <Radar name="Docente" dataKey="Docente" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} />
+              <Legend />
+              <Tooltip />
+            </RadarChart>
           </ResponsiveContainer>
         </div>
       </div>
@@ -157,56 +288,99 @@ export default function ResultadosDocentePage() {
               <th>Co</th>
               <th>Docente</th>
               <th>Final</th>
-              <th></th>
+              <th className="no-print"></th>
             </tr>
           </thead>
           <tbody>
             {datos.individuos
               .slice()
               .sort((a, b) => a.notaFinal - b.notaFinal)
-              .map((i) => (
-                <Fragment key={i.estudianteId}>
-                  <tr className="border-t border-slate-100">
-                    <td className="py-2">{i.nombre}</td>
-                    <td>{i.grupoNombre}</td>
-                    <td>{i.notaAutoevaluacion?.toFixed(1) ?? "—"}</td>
-                    <td>{i.notaCoevaluacion?.toFixed(1) ?? "—"}</td>
-                    <td>{i.notaDocente?.toFixed(1) ?? "—"}</td>
-                    <td className="font-semibold">{i.notaFinal.toFixed(1)}</td>
-                    <td>
-                      <button
-                        className="text-xs text-brand-600 hover:underline"
-                        onClick={() => setExpandido(expandido === i.estudianteId ? null : i.estudianteId)}
-                      >
-                        {expandido === i.estudianteId ? "Ocultar" : "Detalle"}
-                      </button>
-                    </td>
-                  </tr>
-                  {expandido === i.estudianteId && (
-                    <tr className="border-t border-slate-100 bg-slate-50">
-                      <td colSpan={7} className="p-4">
-                        <ul className="mb-3 flex flex-col gap-1">
-                          {i.detalleCriterios
-                            .slice()
-                            .sort((a, b) => a.promedio - b.promedio)
-                            .map((c) => (
-                              <li key={c.criterioId} className="flex items-center gap-2">
-                                <span
-                                  className={`h-2 w-2 rounded-full ${
-                                    c.esPuntoCritico ? "bg-red-500" : "bg-emerald-500"
-                                  }`}
-                                />
-                                <span className="flex-1">{c.nombre}</span>
-                                <span className="font-medium">{c.promedio.toFixed(1)}</span>
-                              </li>
-                            ))}
-                        </ul>
-                        <p className="text-slate-700">{i.retroalimentacion}</p>
+              .map((i) => {
+                const expandido = expandidos.has(i.estudianteId);
+                const datosRadarEstudiante = i.detalleCriterios.map((c) => ({
+                  criterio: c.nombre,
+                  Autoevaluación: c.promedioAuto ?? 0,
+                  Compañeros: c.promedioCoevaluacion ?? 0,
+                  Docente: c.promedioDocente ?? 0,
+                }));
+
+                return (
+                  <Fragment key={i.estudianteId}>
+                    <tr className="border-t border-slate-100">
+                      <td className="py-2">{i.nombre}</td>
+                      <td>{i.grupoNombre}</td>
+                      <td>{i.notaAutoevaluacion?.toFixed(1) ?? "—"}</td>
+                      <td>{i.notaCoevaluacion?.toFixed(1) ?? "—"}</td>
+                      <td>{i.notaDocente?.toFixed(1) ?? "—"}</td>
+                      <td className="font-semibold">{i.notaFinal.toFixed(1)}</td>
+                      <td className="no-print">
+                        <button
+                          className="text-xs text-brand-600 hover:underline"
+                          onClick={() => toggleExpandido(i.estudianteId)}
+                        >
+                          {expandido ? "Ocultar" : "Detalle"}
+                        </button>
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
+                    {expandido && (
+                      <tr className="border-t border-slate-100 bg-slate-50">
+                        <td colSpan={7} className="p-4">
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <div>
+                              <ul className="mb-3 flex flex-col gap-1">
+                                {i.detalleCriterios
+                                  .slice()
+                                  .sort((a, b) => a.promedio - b.promedio)
+                                  .map((c) => (
+                                    <li key={c.criterioId} className="flex items-center gap-2">
+                                      <span
+                                        className={`h-2 w-2 rounded-full ${
+                                          c.esPuntoCritico
+                                            ? "bg-red-500"
+                                            : c.esFortaleza
+                                              ? "bg-emerald-500"
+                                              : "bg-slate-400"
+                                        }`}
+                                      />
+                                      <span className="flex-1">{c.nombre}</span>
+                                      <span className="font-medium">{c.promedio.toFixed(1)}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                              <p className="whitespace-pre-line text-slate-700">{i.retroalimentacion}</p>
+                            </div>
+                            <div className="h-72">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RadarChart data={datosRadarEstudiante}>
+                                  <PolarGrid />
+                                  <PolarAngleAxis dataKey="criterio" tick={{ fontSize: 10 }} />
+                                  <PolarRadiusAxis domain={[0, 100]} />
+                                  <Radar
+                                    name="Autoevaluación"
+                                    dataKey="Autoevaluación"
+                                    stroke="#3457d5"
+                                    fill="#3457d5"
+                                    fillOpacity={0.15}
+                                  />
+                                  <Radar
+                                    name="Compañeros"
+                                    dataKey="Compañeros"
+                                    stroke="#10b981"
+                                    fill="#10b981"
+                                    fillOpacity={0.15}
+                                  />
+                                  <Radar name="Docente" dataKey="Docente" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} />
+                                  <Legend />
+                                </RadarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
           </tbody>
         </table>
       </div>

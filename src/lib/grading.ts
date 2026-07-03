@@ -14,7 +14,9 @@
 //    Si falta algún componente, sus puntos se redistribuyen
 //    proporcionalmente entre los componentes disponibles.
 // 4. Adicionalmente se calcula el promedio ponderado por CRITERIO (no solo
-//    el total) para poder identificar los indicadores más bajos.
+//    el total), y también el desglose por fuente (auto/co/docente) de cada
+//    criterio, para poder identificar indicadores críticos/fortalezas y
+//    explicar de dónde viene cada percepción.
 
 export interface CriterioInfo {
   id: string;
@@ -43,7 +45,12 @@ export interface CriterioResultado {
   criterioId: string;
   nombre: string;
   promedio: number; // 0-100, ponderado entre auto/co/docente igual que la nota final
+  // Desglose por fuente (0-100), null si esa fuente no evaluó este criterio.
+  promedioAuto: number | null;
+  promedioCoevaluacion: number | null;
+  promedioDocente: number | null;
   esPuntoCritico: boolean;
+  esFortaleza: boolean;
 }
 
 export interface ResultadoCalculado {
@@ -108,6 +115,8 @@ function combinarPonderado(
 }
 
 const UMBRAL_PUNTO_CRITICO = 60; // por debajo de este puntaje (0-100) se marca como indicador a mejorar
+const UMBRAL_FORTALEZA = 80; // desde este puntaje (0-100) se marca como fortaleza
+const BRECHA_NOTABLE = 15; // diferencia (en puntos) para considerar que dos fuentes "no coinciden"
 
 export function calcularResultadoEstudiante(params: {
   autoevaluacion: EvaluacionInput | null;
@@ -168,7 +177,11 @@ export function calcularResultadoEstudiante(params: {
       criterioId: criterio.id,
       nombre: criterio.nombre,
       promedio,
+      promedioAuto: autoC,
+      promedioCoevaluacion: coC,
+      promedioDocente: docC,
       esPuntoCritico: promedio < UMBRAL_PUNTO_CRITICO,
+      esFortaleza: promedio >= UMBRAL_FORTALEZA,
     };
   });
 
@@ -185,11 +198,60 @@ export function calcularResultadoEstudiante(params: {
   };
 }
 
+function describirFuentes(c: CriterioResultado): string {
+  const partes: string[] = [];
+  if (c.promedioAuto !== null) partes.push(`tu autoevaluación ${c.promedioAuto.toFixed(1)}`);
+  if (c.promedioCoevaluacion !== null) partes.push(`tus compañeros ${c.promedioCoevaluacion.toFixed(1)}`);
+  if (c.promedioDocente !== null) partes.push(`tu docente ${c.promedioDocente.toFixed(1)}`);
+  return partes.join(", ");
+}
+
+/** Sugerencia accionable para un indicador bajo, basada en cómo se comparan las fuentes disponibles. */
+function sugerenciaParaCritico(c: CriterioResultado): string {
+  const { promedioAuto: auto, promedioCoevaluacion: co, promedioDocente: doc } = c;
+  const disponibles = [auto, co, doc].filter((v): v is number => v !== null);
+
+  if (disponibles.length < 2) {
+    return `Pide a tu docente o a tus compañeros ejemplos concretos sobre "${c.nombre}" para saber exactamente qué acción tomar.`;
+  }
+
+  const maxV = Math.max(...disponibles);
+  const minV = Math.min(...disponibles);
+
+  if (maxV - minV < BRECHA_NOTABLE) {
+    return `Tu autoevaluación, tus compañeros y tu docente coinciden en este puntaje bajo: fija con ellos una meta concreta y medible para el próximo periodo.`;
+  }
+  if (auto !== null && auto === maxV) {
+    return `Te calificaste más alto de lo que te calificaron tus compañeros y/o tu docente en este aspecto: pide ejemplos concretos de qué esperan ver de ti para cerrar esa diferencia de percepción.`;
+  }
+  if (co !== null && doc !== null && co < doc) {
+    return `Tus compañeros de equipo calificaron esto más bajo que tu docente: conversa con tu equipo sobre qué comportamientos concretos esperan de ti aquí.`;
+  }
+  if (doc !== null && co !== null && doc < co) {
+    return `Tu docente calificó esto más bajo que tus compañeros: pide una breve reunión para entender qué evidencia específica espera ver.`;
+  }
+  return `Hay diferencias de percepción sobre este aspecto entre las evaluaciones recibidas: conversarlo con tu equipo y tu docente ayudará a definir una acción concreta de mejora.`;
+}
+
+/** Comentario para un punto fuerte, resaltando si hay consenso entre fuentes. */
+function comentarioFortaleza(c: CriterioResultado): string {
+  const disponibles = [c.promedioAuto, c.promedioCoevaluacion, c.promedioDocente].filter(
+    (v): v is number => v !== null
+  );
+  if (disponibles.length >= 2 && Math.max(...disponibles) - Math.min(...disponibles) < BRECHA_NOTABLE) {
+    return `tanto tus compañeros como tu docente coinciden en reconocer este punto fuerte: aprovecha para apoyar a tu equipo en este aspecto.`;
+  }
+  return `sigue apoyándote en esta fortaleza para el resto del equipo.`;
+}
+
 /**
- * Retroalimentación automática basada en reglas: identifica el/los
- * indicadores más débiles y el más fuerte, y arma un texto orientado a la
- * mejora. Determinístico por diseño (mismo input -> mismo output), útil
- * como base sobre la que después se podría enchufar generación con LLM.
+ * Retroalimentación automática basada en reglas: identifica los indicadores
+ * más débiles y más fuertes, compara la percepción de cada fuente
+ * (autoevaluación / coevaluación / docente) y sugiere una acción concreta
+ * para cada uno. Determinístico por diseño (mismo input -> mismo output),
+ * útil como base sobre la que después se podría enchufar generación con LLM
+ * para redactar el mensaje en lenguaje más natural a partir de estos mismos
+ * datos estructurados.
  */
 export function generarRetroalimentacion(
   detalleCriterios: CriterioResultado[],
@@ -201,8 +263,11 @@ export function generarRetroalimentacion(
   }
 
   const ordenados = [...detalleCriterios].sort((a, b) => a.promedio - b.promedio);
-  const criticos = ordenados.filter((c) => c.esPuntoCritico);
-  const mejor = ordenados[ordenados.length - 1];
+  const criticos = ordenados.filter((c) => c.esPuntoCritico).slice(0, 3);
+  const fortalezas = [...ordenados]
+    .reverse()
+    .filter((c) => c.esFortaleza)
+    .slice(0, 2);
 
   const partes: string[] = [];
 
@@ -217,23 +282,38 @@ export function generarRetroalimentacion(
   }
 
   if (criticos.length > 0) {
-    const nombres = criticos.slice(0, 3).map((c) => `"${c.nombre}" (${c.promedio.toFixed(1)}/100)`);
-    partes.push(
-      `Puntos críticos a mejorar: ${nombres.join(", ")}. Se sugiere reforzar estos aspectos en el próximo periodo.`
-    );
+    partes.push("\n\nPuntos críticos a mejorar:");
+    for (const c of criticos) {
+      const fuentes = describirFuentes(c);
+      partes.push(
+        `\n- "${c.nombre}" (${c.promedio.toFixed(1)}/100${fuentes ? `; ${fuentes}` : ""}). ${sugerenciaParaCritico(c)}`
+      );
+    }
   } else {
-    partes.push("No se detectaron indicadores por debajo del umbral crítico.");
+    partes.push("\n\nNo se detectaron indicadores por debajo del umbral crítico.");
   }
 
-  if (mejor && !mejor.esPuntoCritico) {
-    partes.push(`Fortaleza principal: "${mejor.nombre}" (${mejor.promedio.toFixed(1)}/100).`);
+  if (fortalezas.length > 0) {
+    partes.push("\n\nPuntos más altos:");
+    for (const f of fortalezas) {
+      const fuentes = describirFuentes(f);
+      partes.push(
+        `\n- "${f.nombre}" (${f.promedio.toFixed(1)}/100${fuentes ? `; ${fuentes}` : ""}). ${comentarioFortaleza(f)}`
+      );
+    }
   }
+
+  partes.push(
+    criticos.length > 0
+      ? `\n\nPlan de acción sugerido: elige uno de los puntos críticos de arriba, define una meta concreta y medible para el próximo periodo, y conversa tanto con tu equipo como con tu docente para alinear expectativas.`
+      : `\n\nPlan de acción sugerido: mantén el nivel actual y busca oportunidades de mentorear a compañeros en tus puntos más fuertes.`
+  );
 
   if (!completo) {
     partes.push(
-      "Nota calculada de forma parcial: aún faltan una o más evaluaciones (autoevaluación, coevaluación o docente) por registrar."
+      "\n\nNota calculada de forma parcial: aún faltan una o más evaluaciones (autoevaluación, coevaluación o docente) por registrar."
     );
   }
 
-  return partes.join(" ");
+  return partes.join(" ").replace(/ \n/g, "\n");
 }
