@@ -173,6 +173,15 @@ el mensaje en lenguaje más natural a partir de los mismos datos estructurados.
   autoasigne el rol estudiante o se inscriba en cursos ajenos.
 - **Secretos**: `NEXTAUTH_SECRET` y `DATABASE_URL` viven en variables de entorno (`.env`, nunca commiteadas;
   ver `.env.example`) y se configuran como Environment Variables en Vercel para producción.
+- **No se pueden "ver" contraseñas existentes**: solo se guarda el hash, nunca el valor original, así que ni
+  el docente ni el administrador pueden recuperar la contraseña de un estudiante. En su lugar, el docente
+  puede **restablecerla** (`POST /api/cursos/[id]/estudiantes/[estudianteId]/restablecer-password`), que
+  genera una contraseña nueva y la muestra una única vez para volver a compartirla.
+- **Importación de Excel/CSV**: el archivo se procesa por completo en el navegador (librería `xlsx`), nunca
+  se sube el binario al servidor — solo se extraen nombre/correo y se reutiliza el mismo endpoint de carga
+  manual. Esto acota el riesgo de las vulnerabilidades conocidas de `xlsx` (CVE de prototype pollution/ReDoS,
+  sin parche en la versión publicada en npm) al navegador de quien importa su propio archivo, sin exponer al
+  servidor.
 
 ## 7. Cómo correr el proyecto
 
