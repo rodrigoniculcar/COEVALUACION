@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { AuthShell } from "@/components/AuthShell";
 
 export default function RegistroPage() {
   const router = useRouter();
@@ -43,19 +45,27 @@ export default function RegistroPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
-      <div>
-        <h1 className="text-2xl font-bold">Crear cuenta docente</h1>
-        <p className="mt-1 text-sm text-slate-600">
+    <AuthShell>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">Crear cuenta docente</h1>
+        <p className="mt-2 text-sm text-slate-500">
           Los estudiantes no se registran aquí: el docente los carga desde su curso.
         </p>
       </div>
-      <form onSubmit={onSubmit} className="card flex flex-col gap-4">
+
+      <form onSubmit={onSubmit} className="flex flex-col gap-5">
         <div>
           <label className="label" htmlFor="nombre">
             Nombre completo
           </label>
-          <input id="nombre" required className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          <input
+            id="nombre"
+            autoComplete="name"
+            required
+            className="input"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+          />
         </div>
         <div>
           <label className="label" htmlFor="email">
@@ -64,6 +74,7 @@ export default function RegistroPage() {
           <input
             id="email"
             type="email"
+            autoComplete="email"
             required
             className="input"
             value={email}
@@ -77,6 +88,7 @@ export default function RegistroPage() {
           <input
             id="password"
             type="password"
+            autoComplete="new-password"
             minLength={8}
             required
             className="input"
@@ -85,10 +97,17 @@ export default function RegistroPage() {
           />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="btn-primary" disabled={cargando}>
+        <button type="submit" className="btn-primary mt-2 w-full py-2.5" disabled={cargando}>
           {cargando ? "Creando..." : "Crear cuenta"}
         </button>
       </form>
-    </main>
+
+      <p className="mt-8 text-center text-sm text-slate-500">
+        ¿Ya tienes cuenta?{" "}
+        <Link href="/login" className="font-medium text-brand-600 hover:text-brand-700">
+          Inicia sesión
+        </Link>
+      </p>
+    </AuthShell>
   );
 }
