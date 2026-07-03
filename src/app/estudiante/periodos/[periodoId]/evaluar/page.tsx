@@ -1,14 +1,17 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { VolverLink } from "@/components/VolverLink";
+import { EscalaRating } from "@/components/EscalaRating";
 
 interface Criterio {
   id: string;
   nombre: string;
   descripcion?: string | null;
   ponderacion: number;
+  aplicaAutoevaluacion: boolean;
+  aplicaCoevaluacion: boolean;
 }
 
 interface Pendientes {
@@ -46,6 +49,16 @@ export default function EvaluarEstudiantePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodoId]);
 
+  // Solo se muestran/exigen los criterios aplicables al tipo de evaluación
+  // activa (autoevaluación o coevaluación); un criterio puede estar
+  // restringido a solo una de las dos.
+  const criteriosAplicables = useMemo(() => {
+    if (!datos || !objetivoActivo) return [];
+    return datos.rubrica.criterios.filter((c) =>
+      objetivoActivo.tipo === "AUTOEVALUACION" ? c.aplicaAutoevaluacion : c.aplicaCoevaluacion
+    );
+  }, [datos, objetivoActivo]);
+
   function abrirObjetivo(obj: Pendientes["objetivos"][number]) {
     setObjetivoActivo(obj);
     setPuntajes({});
@@ -59,8 +72,7 @@ export default function EvaluarEstudiantePage() {
     if (!datos || !objetivoActivo) return;
     setError(null);
 
-    const criterios = datos.rubrica.criterios;
-    if (criterios.some((c) => puntajes[c.id] === undefined)) {
+    if (criteriosAplicables.some((c) => puntajes[c.id] === undefined)) {
       setError("Debes calificar todos los criterios.");
       return;
     }
@@ -74,7 +86,7 @@ export default function EvaluarEstudiantePage() {
         evaluadoId: objetivoActivo.estudianteId,
         grupoId: datos.grupoId,
         comentario,
-        detalles: criterios.map((c) => ({ criterioId: c.id, puntaje: puntajes[c.id] })),
+        detalles: criteriosAplicables.map((c) => ({ criterioId: c.id, puntaje: puntajes[c.id] })),
       }),
     });
     const data = await res.json();
@@ -136,23 +148,18 @@ export default function EvaluarEstudiantePage() {
           <h2 className="font-semibold">
             {objetivoActivo.tipo === "AUTOEVALUACION" ? "Autoevaluación" : `Coevaluación de ${objetivoActivo.nombre}`}
           </h2>
-          {datos.rubrica.criterios.map((c) => (
+          {criteriosAplicables.map((c) => (
             <div key={c.id} className="flex flex-col gap-1 border-b border-slate-100 pb-3">
               <span className="text-sm font-medium">
                 {c.nombre} <span className="text-slate-400">({c.ponderacion}%)</span>
               </span>
               {c.descripcion && <p className="text-xs text-slate-500">{c.descripcion}</p>}
-              <input
-                type="range"
-                min={datos.rubrica.escalaMin}
-                max={datos.rubrica.escalaMax}
-                step={1}
-                value={puntajes[c.id] ?? datos.rubrica.escalaMin}
-                onChange={(e) => setPuntajes((prev) => ({ ...prev, [c.id]: Number(e.target.value) }))}
+              <EscalaRating
+                escalaMin={datos.rubrica.escalaMin}
+                escalaMax={datos.rubrica.escalaMax}
+                valor={puntajes[c.id]}
+                onChange={(v) => setPuntajes((prev) => ({ ...prev, [c.id]: v }))}
               />
-              <span className="text-sm text-slate-600">
-                Puntaje: {puntajes[c.id] ?? datos.rubrica.escalaMin} / {datos.rubrica.escalaMax}
-              </span>
             </div>
           ))}
           <div>

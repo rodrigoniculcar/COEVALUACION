@@ -3,12 +3,14 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { VolverLink } from "@/components/VolverLink";
+import { EscalaRating } from "@/components/EscalaRating";
 
 interface Criterio {
   id: string;
   nombre: string;
   descripcion?: string | null;
   ponderacion: number;
+  aplicaDocente: boolean;
 }
 
 interface Periodo {
@@ -48,16 +50,16 @@ export default function EvaluarDocentePage() {
   const [enviando, setEnviando] = useState(false);
 
   async function cargarTodo() {
-    const [resPeriodo, resCurso, resEval] = await Promise.all([
+    const [resPeriodo, resGrupos, resEval] = await Promise.all([
       fetch(`/api/periodos/${periodoId}`),
-      fetch(`/api/cursos/${id}`),
+      fetch(`/api/periodos/${periodoId}/grupos`),
       fetch(`/api/periodos/${periodoId}/evaluaciones`),
     ]);
     const dataPeriodo = await resPeriodo.json();
-    const dataCurso = await resCurso.json();
+    const dataGrupos = await resGrupos.json();
     const dataEval = await resEval.json();
     setPeriodo(dataPeriodo.periodo);
-    setGrupos(dataCurso.curso?.grupos ?? []);
+    setGrupos(dataGrupos.grupos ?? []);
     setEvaluaciones(dataEval.evaluaciones ?? []);
   }
 
@@ -67,6 +69,12 @@ export default function EvaluarDocentePage() {
   }, [id, periodoId]);
 
   const grupoActual = grupos.find((g) => g.id === grupoId);
+
+  // Solo se muestran/exigen los criterios marcados como aplicables a DOCENTE.
+  const criteriosAplicables = useMemo(
+    () => periodo?.rubrica.criterios.filter((c) => c.aplicaDocente) ?? [],
+    [periodo]
+  );
 
   const yaEvaluado = useMemo(
     () => new Set(evaluaciones.filter((e) => e.tipo === "DOCENTE").map((e) => e.evaluadoId)),
@@ -93,8 +101,7 @@ export default function EvaluarDocentePage() {
     setMensaje(null);
 
     if (!periodo) return;
-    const criterios = periodo.rubrica.criterios;
-    if (criterios.some((c) => puntajes[c.id] === undefined)) {
+    if (criteriosAplicables.some((c) => puntajes[c.id] === undefined)) {
       setError("Debes calificar todos los criterios.");
       return;
     }
@@ -108,7 +115,7 @@ export default function EvaluarDocentePage() {
         evaluadoId: estudianteId,
         grupoId,
         comentario,
-        detalles: criterios.map((c) => ({ criterioId: c.id, puntaje: puntajes[c.id] })),
+        detalles: criteriosAplicables.map((c) => ({ criterioId: c.id, puntaje: puntajes[c.id] })),
       }),
     });
     const data = await res.json();
@@ -162,6 +169,11 @@ export default function EvaluarDocentePage() {
               </option>
             ))}
           </select>
+          {grupos.length === 0 && (
+            <p className="mt-1 text-xs text-amber-600">
+              Este periodo todavía no tiene equipos. Créalos desde &quot;Equipos&quot; en la lista de periodos.
+            </p>
+          )}
         </div>
         {grupoActual && (
           <div className="min-w-[220px]">
@@ -190,7 +202,7 @@ export default function EvaluarDocentePage() {
       {estudianteId && (
         <form onSubmit={onSubmit} className="card flex flex-col gap-4">
           <h2 className="font-semibold">Rúbrica (escala {periodo.rubrica.escalaMin}-{periodo.rubrica.escalaMax})</h2>
-          {periodo.rubrica.criterios.map((c) => (
+          {criteriosAplicables.map((c) => (
             <div key={c.id} className="flex flex-col gap-1 border-b border-slate-100 pb-3">
               <div className="flex justify-between text-sm">
                 <span className="font-medium">
@@ -198,15 +210,12 @@ export default function EvaluarDocentePage() {
                 </span>
               </div>
               {c.descripcion && <p className="text-xs text-slate-500">{c.descripcion}</p>}
-              <input
-                type="range"
-                min={periodo.rubrica.escalaMin}
-                max={periodo.rubrica.escalaMax}
-                step={1}
-                value={puntajes[c.id] ?? periodo.rubrica.escalaMin}
-                onChange={(e) => setPuntajes((prev) => ({ ...prev, [c.id]: Number(e.target.value) }))}
+              <EscalaRating
+                escalaMin={periodo.rubrica.escalaMin}
+                escalaMax={periodo.rubrica.escalaMax}
+                valor={puntajes[c.id]}
+                onChange={(v) => setPuntajes((prev) => ({ ...prev, [c.id]: v }))}
               />
-              <span className="text-sm text-slate-600">Puntaje: {puntajes[c.id] ?? periodo.rubrica.escalaMin}</span>
             </div>
           ))}
           <div>

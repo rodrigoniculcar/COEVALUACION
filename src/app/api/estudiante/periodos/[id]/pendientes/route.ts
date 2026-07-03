@@ -11,20 +11,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       where: { id: params.id },
       include: {
         rubrica: { include: { criterios: { orderBy: { orden: "asc" } } } },
-        curso: {
-          include: {
-            grupos: {
-              where: { miembros: { some: { estudianteId: estudiante.id } } },
-              include: { miembros: { include: { estudiante: { select: { id: true, nombre: true } } } } },
-            },
-          },
+        grupos: {
+          where: { miembros: { some: { estudianteId: estudiante.id } } },
+          include: { miembros: { include: { estudiante: { select: { id: true, nombre: true } } } } },
         },
       },
     });
     if (!periodo) throw new ErrorAcceso("Periodo no encontrado", 404);
 
-    const grupo = periodo.curso.grupos[0];
-    if (!grupo) throw new ErrorAcceso("No perteneces a ningún grupo en este curso", 403);
+    const grupo = periodo.grupos[0];
+    if (!grupo) throw new ErrorAcceso("No perteneces a ningún equipo en este periodo de evaluación", 403);
 
     const evaluacionesEnviadas = await prisma.evaluacion.findMany({
       where: { periodoId: periodo.id, evaluadorId: estudiante.id },

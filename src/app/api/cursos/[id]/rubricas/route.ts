@@ -9,6 +9,9 @@ const criterioSchema = z.object({
   nombre: z.string().min(2).max(150),
   descripcion: z.string().max(500).optional(),
   ponderacion: z.number().positive().max(100),
+  aplicaAutoevaluacion: z.boolean().default(true),
+  aplicaCoevaluacion: z.boolean().default(true),
+  aplicaDocente: z.boolean().default(true),
 });
 
 const crearRubricaSchema = z.object({
@@ -54,6 +57,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       );
     }
 
+    const criterioSinEvaluador = body.criterios.find(
+      (c) => !c.aplicaAutoevaluacion && !c.aplicaCoevaluacion && !c.aplicaDocente
+    );
+    if (criterioSinEvaluador) {
+      throw new ErrorAcceso(
+        `El criterio "${criterioSinEvaluador.nombre}" debe aplicar a al menos un tipo de evaluador`,
+        400
+      );
+    }
+
     const rubrica = await prisma.rubrica.create({
       data: {
         cursoId: params.id,
@@ -67,6 +80,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             descripcion: c.descripcion,
             ponderacion: c.ponderacion,
             orden: idx,
+            aplicaAutoevaluacion: c.aplicaAutoevaluacion,
+            aplicaCoevaluacion: c.aplicaCoevaluacion,
+            aplicaDocente: c.aplicaDocente,
           })),
         },
       },

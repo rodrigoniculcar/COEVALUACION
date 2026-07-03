@@ -49,34 +49,6 @@ async function main() {
     });
   }
 
-  // Reusa los dos primeros grupos existentes del curso (por si ya se
-  // renombraron al probar la edición de equipos) en vez de buscar por
-  // nombre exacto, para que correr el seed varias veces no cree duplicados.
-  const gruposExistentes = await prisma.grupo.findMany({
-    where: { cursoId: curso.id },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const grupoA =
-    gruposExistentes[0] ??
-    (await prisma.grupo.create({
-      data: {
-        cursoId: curso.id,
-        nombre: "Equipo A",
-        miembros: { create: estudiantes.slice(0, 3).map((e) => ({ estudianteId: e.id })) },
-      },
-    }));
-
-  const grupoB =
-    gruposExistentes[1] ??
-    (await prisma.grupo.create({
-      data: {
-        cursoId: curso.id,
-        nombre: "Equipo B",
-        miembros: { create: estudiantes.slice(3, 6).map((e) => ({ estudianteId: e.id })) },
-      },
-    }));
-
   const rubrica =
     (await prisma.rubrica.findFirst({ where: { cursoId: curso.id }, include: { criterios: true } })) ??
     (await prisma.rubrica.create({
@@ -91,7 +63,16 @@ async function main() {
             { nombre: "Cumplimiento de tareas", ponderacion: 30, orden: 0 },
             { nombre: "Comunicación y colaboración", ponderacion: 25, orden: 1 },
             { nombre: "Calidad del trabajo entregado", ponderacion: 25, orden: 2 },
-            { nombre: "Puntualidad y responsabilidad", ponderacion: 20, orden: 3 },
+            // Ejemplo de criterio restringido a un solo tipo de evaluador:
+            // solo lo evalúa el docente (no aparece en auto/coevaluación).
+            {
+              nombre: "Puntualidad y responsabilidad",
+              ponderacion: 20,
+              orden: 3,
+              aplicaAutoevaluacion: false,
+              aplicaCoevaluacion: false,
+              aplicaDocente: true,
+            },
           ],
         },
       },
@@ -113,7 +94,38 @@ async function main() {
         pesoAutoevaluacion: 20,
         pesoCoevaluacion: 40,
         pesoDocente: 40,
+        escalaExigencia: 60,
         estado: "ABIERTO",
+      },
+    }));
+
+  // Los equipos son propios del periodo (pueden cambiar de una evaluación a
+  // otra). Se reutilizan los dos primeros equipos existentes de este
+  // periodo (por si ya se renombraron al probar la edición) en vez de
+  // buscar por nombre exacto, para que correr el seed varias veces no cree
+  // duplicados.
+  const gruposExistentes = await prisma.grupo.findMany({
+    where: { periodoId: periodo.id },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const grupoA =
+    gruposExistentes[0] ??
+    (await prisma.grupo.create({
+      data: {
+        periodoId: periodo.id,
+        nombre: "Equipo A",
+        miembros: { create: estudiantes.slice(0, 3).map((e) => ({ estudianteId: e.id })) },
+      },
+    }));
+
+  const grupoB =
+    gruposExistentes[1] ??
+    (await prisma.grupo.create({
+      data: {
+        periodoId: periodo.id,
+        nombre: "Equipo B",
+        miembros: { create: estudiantes.slice(3, 6).map((e) => ({ estudianteId: e.id })) },
       },
     }));
 

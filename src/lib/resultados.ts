@@ -13,11 +13,7 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
     where: { id: periodoId },
     include: {
       rubrica: { include: { criterios: true } },
-      curso: {
-        include: {
-          grupos: { include: { miembros: { include: { estudiante: true } } } },
-        },
-      },
+      grupos: { include: { miembros: { include: { estudiante: true } } } },
     },
   });
 
@@ -30,6 +26,9 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
     id: c.id,
     nombre: c.nombre,
     ponderacion: c.ponderacion,
+    aplicaAutoevaluacion: c.aplicaAutoevaluacion,
+    aplicaCoevaluacion: c.aplicaCoevaluacion,
+    aplicaDocente: c.aplicaDocente,
   }));
 
   const toInput = (e: (typeof evaluaciones)[number]): EvaluacionInput => ({
@@ -40,7 +39,7 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
 
   const resultados = [];
 
-  for (const grupo of periodo.curso.grupos) {
+  for (const grupo of periodo.grupos) {
     for (const miembro of grupo.miembros) {
       const estudianteId = miembro.estudianteId;
       const evaluacionesDelEstudiante = evaluaciones.filter((e) => e.evaluadoId === estudianteId);
@@ -57,6 +56,7 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
         criterios,
         escalaMin: periodo.rubrica.escalaMin,
         escalaMax: periodo.rubrica.escalaMax,
+        escalaExigencia: periodo.escalaExigencia,
         pesos: {
           pesoAutoevaluacion: periodo.pesoAutoevaluacion,
           pesoCoevaluacion: periodo.pesoCoevaluacion,
@@ -83,6 +83,7 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
           notaCoevaluacion: calculo.notaCoevaluacion,
           notaDocente: calculo.notaDocente,
           notaFinal: calculo.notaFinal,
+          notaEscala1a7: calculo.notaEscala1a7,
           detalleCriterios: calculo.detalleCriterios as unknown as Prisma.InputJsonValue,
           retroalimentacion: calculo.retroalimentacion,
         },
@@ -91,6 +92,7 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
           notaCoevaluacion: calculo.notaCoevaluacion,
           notaDocente: calculo.notaDocente,
           notaFinal: calculo.notaFinal,
+          notaEscala1a7: calculo.notaEscala1a7,
           detalleCriterios: calculo.detalleCriterios as unknown as Prisma.InputJsonValue,
           retroalimentacion: calculo.retroalimentacion,
           calculadoAt: new Date(),

@@ -17,3 +17,14 @@ export async function requireInscripcion(cursoId: string, estudianteId: string) 
   if (!inscripcion) throw new ErrorAcceso("No estás inscrito en este curso", 403);
   return inscripcion;
 }
+
+/** Verifica que el periodo exista y pertenezca (vía su curso) al docente autenticado. */
+export async function requirePeriodoDelDocente(periodoId: string, docenteId: string) {
+  const periodo = await prisma.periodoEvaluacion.findUnique({
+    where: { id: periodoId },
+    include: { curso: true },
+  });
+  if (!periodo) throw new ErrorAcceso("Periodo no encontrado", 404);
+  if (periodo.curso.docenteId !== docenteId) throw new ErrorAcceso("No tienes acceso a este periodo", 403);
+  return periodo;
+}

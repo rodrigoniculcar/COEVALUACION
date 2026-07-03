@@ -18,9 +18,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       where: { id: params.id },
       include: {
         inscripciones: { include: { estudiante: { select: { id: true, nombre: true, email: true } } } },
-        grupos: { include: { miembros: { include: { estudiante: { select: { id: true, nombre: true } } } } } },
         rubricas: { include: { criterios: true } },
-        periodos: true,
+        periodos: { include: { _count: { select: { grupos: true } } } },
       },
     });
 

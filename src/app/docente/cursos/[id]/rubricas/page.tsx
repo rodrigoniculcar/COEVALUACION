@@ -9,6 +9,9 @@ interface Criterio {
   nombre: string;
   descripcion?: string;
   ponderacion: number;
+  aplicaAutoevaluacion: boolean;
+  aplicaCoevaluacion: boolean;
+  aplicaDocente: boolean;
 }
 
 interface Rubrica {
@@ -19,7 +22,14 @@ interface Rubrica {
   criterios: Criterio[];
 }
 
-const criterioVacio = (): Criterio => ({ nombre: "", descripcion: "", ponderacion: 0 });
+const criterioVacio = (): Criterio => ({
+  nombre: "",
+  descripcion: "",
+  ponderacion: 0,
+  aplicaAutoevaluacion: true,
+  aplicaCoevaluacion: true,
+  aplicaDocente: true,
+});
 
 export default function RubricasPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,6 +57,13 @@ export default function RubricasPage() {
     setCriterios((prev) =>
       prev.map((c, i) => (i === idx ? { ...c, [campo]: campo === "ponderacion" ? Number(valor) : valor } : c))
     );
+  }
+
+  function alternarVisibilidad(
+    idx: number,
+    campo: "aplicaAutoevaluacion" | "aplicaCoevaluacion" | "aplicaDocente"
+  ) {
+    setCriterios((prev) => prev.map((c, i) => (i === idx ? { ...c, [campo]: !c[campo] } : c)));
   }
 
   async function onSubmit(e: FormEvent) {
@@ -121,36 +138,65 @@ export default function RubricasPage() {
             </span>
           </div>
           {criterios.map((c, idx) => (
-            <div key={idx} className="flex flex-wrap items-start gap-2 rounded-lg border border-slate-200 p-3">
-              <input
-                className="input flex-1 min-w-[160px]"
-                placeholder="Nombre del criterio"
-                value={c.nombre}
-                onChange={(e) => actualizarCriterio(idx, "nombre", e.target.value)}
-                required
-              />
-              <input
-                className="input flex-[2] min-w-[200px]"
-                placeholder="Descripción (opcional)"
-                value={c.descripcion}
-                onChange={(e) => actualizarCriterio(idx, "descripcion", e.target.value)}
-              />
-              <input
-                type="number"
-                className="input w-28"
-                placeholder="% Peso"
-                value={c.ponderacion || ""}
-                onChange={(e) => actualizarCriterio(idx, "ponderacion", e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setCriterios((prev) => prev.filter((_, i) => i !== idx))}
-                disabled={criterios.length <= 1}
-              >
-                Quitar
-              </button>
+            <div key={idx} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
+              <div className="flex flex-wrap items-start gap-2">
+                <input
+                  className="input flex-1 min-w-[160px]"
+                  placeholder="Nombre del criterio"
+                  value={c.nombre}
+                  onChange={(e) => actualizarCriterio(idx, "nombre", e.target.value)}
+                  required
+                />
+                <input
+                  className="input flex-[2] min-w-[200px]"
+                  placeholder="Descripción (opcional)"
+                  value={c.descripcion}
+                  onChange={(e) => actualizarCriterio(idx, "descripcion", e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="input w-28"
+                  placeholder="% Peso"
+                  value={c.ponderacion || ""}
+                  onChange={(e) => actualizarCriterio(idx, "ponderacion", e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setCriterios((prev) => prev.filter((_, i) => i !== idx))}
+                  disabled={criterios.length <= 1}
+                >
+                  Quitar
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+                <span className="text-slate-500">Visible para:</span>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={c.aplicaAutoevaluacion}
+                    onChange={() => alternarVisibilidad(idx, "aplicaAutoevaluacion")}
+                  />
+                  Autoevaluación
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={c.aplicaCoevaluacion}
+                    onChange={() => alternarVisibilidad(idx, "aplicaCoevaluacion")}
+                  />
+                  Coevaluación
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={c.aplicaDocente}
+                    onChange={() => alternarVisibilidad(idx, "aplicaDocente")}
+                  />
+                  Docente
+                </label>
+              </div>
             </div>
           ))}
           <button
@@ -179,6 +225,7 @@ export default function RubricasPage() {
                 <tr className="text-left text-slate-500">
                   <th className="py-1">Criterio</th>
                   <th className="w-24">Peso</th>
+                  <th className="w-56">Visible para</th>
                 </tr>
               </thead>
               <tbody>
@@ -186,6 +233,17 @@ export default function RubricasPage() {
                   <tr key={c.id} className="border-t border-slate-100">
                     <td className="py-1">{c.nombre}</td>
                     <td>{c.ponderacion}%</td>
+                    <td className="flex flex-wrap gap-1 py-1">
+                      {c.aplicaAutoevaluacion && (
+                        <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-700">Auto</span>
+                      )}
+                      {c.aplicaCoevaluacion && (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">Co</span>
+                      )}
+                      {c.aplicaDocente && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Docente</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

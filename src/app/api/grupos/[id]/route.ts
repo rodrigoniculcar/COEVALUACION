@@ -10,9 +10,12 @@ const editarGrupoSchema = z.object({
 });
 
 async function requireGrupoDelDocente(grupoId: string, docenteId: string) {
-  const grupo = await prisma.grupo.findUnique({ where: { id: grupoId }, include: { curso: true } });
+  const grupo = await prisma.grupo.findUnique({
+    where: { id: grupoId },
+    include: { periodo: { include: { curso: true } } },
+  });
   if (!grupo) throw new ErrorAcceso("Grupo no encontrado", 404);
-  if (grupo.curso.docenteId !== docenteId) throw new ErrorAcceso("No tienes acceso a este grupo", 403);
+  if (grupo.periodo.curso.docenteId !== docenteId) throw new ErrorAcceso("No tienes acceso a este grupo", 403);
   return grupo;
 }
 
@@ -29,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (body.estudianteIds) {
       const inscritos = await prisma.inscripcion.findMany({
-        where: { cursoId: grupo.cursoId, estudianteId: { in: body.estudianteIds } },
+        where: { cursoId: grupo.periodo.cursoId, estudianteId: { in: body.estudianteIds } },
       });
       if (inscritos.length !== body.estudianteIds.length) {
         throw new ErrorAcceso("Uno o más estudiantes no están inscritos en este curso", 400);

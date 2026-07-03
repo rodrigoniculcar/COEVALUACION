@@ -40,6 +40,7 @@ interface Individuo {
   notaCoevaluacion: number | null;
   notaDocente: number | null;
   notaFinal: number;
+  notaEscala1a7: number;
   retroalimentacion: string;
   detalleCriterios: CriterioResultado[];
 }
@@ -49,14 +50,16 @@ interface Equipo {
   nombre: string;
   integrantes: number;
   notaPromedio: number;
+  notaEscala1a7Promedio: number;
   indicadoresMasBajos: { criterioId: string; nombre: string; promedio: number }[];
 }
 
 interface Respuesta {
-  periodo: { nombre: string };
+  periodo: { nombre: string; escalaExigencia: number };
   resumenCurso: {
     totalEstudiantes: number;
     notaPromedio: number;
+    notaEscala1a7Promedio: number;
     indicadoresMasBajos: { criterioId: string; nombre: string; promedio: number }[];
   };
   equipos: Equipo[];
@@ -105,9 +108,19 @@ export default function ResultadosDocentePage() {
       Coevaluación: i.notaCoevaluacion ?? "",
       Docente: i.notaDocente ?? "",
       Final: Number(i.notaFinal.toFixed(1)),
+      "Nota (1-7)": i.notaEscala1a7.toFixed(1),
     }));
     const hoja = XLSX.utils.json_to_sheet(filas);
-    hoja["!cols"] = [{ wch: 24 }, { wch: 28 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+    hoja["!cols"] = [
+      { wch: 24 },
+      { wch: 28 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 12 },
+    ];
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Resultados");
     XLSX.writeFile(libro, `resultados-${datos.periodo.nombre.replace(/\s+/g, "-").toLowerCase()}.xlsx`);
@@ -205,6 +218,9 @@ export default function ResultadosDocentePage() {
         <div className="card">
           <p className="text-sm text-slate-500">Nota promedio del curso</p>
           <p className="text-3xl font-bold">{datos.resumenCurso.notaPromedio.toFixed(1)}</p>
+          <p className="text-xs text-slate-400">
+            Escala 1-7: {datos.resumenCurso.notaEscala1a7Promedio.toFixed(1)} (exigencia {datos.periodo.escalaExigencia}%)
+          </p>
         </div>
         <div className="card">
           <p className="text-sm text-slate-500">Equipos</p>
@@ -264,7 +280,9 @@ export default function ResultadosDocentePage() {
               <p className="font-medium">
                 {e.nombre} ({e.integrantes} integrantes)
               </p>
-              <p className="text-slate-500">Promedio: {e.notaPromedio.toFixed(1)}</p>
+              <p className="text-slate-500">
+                Promedio: {e.notaPromedio.toFixed(1)} · Escala 1-7: {e.notaEscala1a7Promedio.toFixed(1)}
+              </p>
               <ul className="mt-1 text-xs text-slate-500">
                 {e.indicadoresMasBajos.map((i) => (
                   <li key={i.criterioId}>
@@ -288,6 +306,7 @@ export default function ResultadosDocentePage() {
               <th>Co</th>
               <th>Docente</th>
               <th>Final</th>
+              <th>Nota (1-7)</th>
               <th className="no-print"></th>
             </tr>
           </thead>
@@ -313,6 +332,7 @@ export default function ResultadosDocentePage() {
                       <td>{i.notaCoevaluacion?.toFixed(1) ?? "—"}</td>
                       <td>{i.notaDocente?.toFixed(1) ?? "—"}</td>
                       <td className="font-semibold">{i.notaFinal.toFixed(1)}</td>
+                      <td className="font-semibold">{i.notaEscala1a7.toFixed(1)}</td>
                       <td className="no-print">
                         <button
                           className="text-xs text-brand-600 hover:underline"
@@ -324,7 +344,7 @@ export default function ResultadosDocentePage() {
                     </tr>
                     {expandido && (
                       <tr className="border-t border-slate-100 bg-slate-50">
-                        <td colSpan={7} className="p-4">
+                        <td colSpan={8} className="p-4">
                           <div className="grid gap-4 lg:grid-cols-2">
                             <div>
                               <ul className="mb-3 flex flex-col gap-1">

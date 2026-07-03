@@ -22,6 +22,11 @@ export interface CriterioInfo {
   id: string;
   nombre: string;
   ponderacion: number; // % dentro de la rúbrica, la suma de todos debe ser 100
+  // Un criterio puede restringirse a solo algunos tipos de evaluador (ej. un
+  // criterio que solo califica el docente). Al menos uno debe ser true.
+  aplicaAutoevaluacion: boolean;
+  aplicaCoevaluacion: boolean;
+  aplicaDocente: boolean;
 }
 
 export interface DetalleInput {
@@ -58,9 +63,27 @@ export interface ResultadoCalculado {
   notaCoevaluacion: number | null;
   notaDocente: number | null;
   notaFinal: number;
+  // notaFinal (0-100) convertida a escala chilena 1.0-7.0.
+  notaEscala1a7: number;
   completo: boolean; // true si los 3 componentes (auto/co/docente) están presentes
   detalleCriterios: CriterioResultado[];
   retroalimentacion: string;
+}
+
+/**
+ * Convierte un puntaje 0-100 a la escala chilena 1.0-7.0, donde `exigencia`
+ * (típicamente 60 o 70) es el porcentaje que corresponde a la nota mínima de
+ * aprobación (4.0). Por debajo de la exigencia la nota baja linealmente
+ * hasta 1.0 en 0%; por sobre la exigencia sube linealmente hasta 7.0 en 100%.
+ */
+export function convertirAEscala1a7(porcentaje0a100: number, exigencia: number): number {
+  const exigenciaValida = exigencia > 0 && exigencia < 100 ? exigencia : 60;
+  const pct = Math.min(100, Math.max(0, porcentaje0a100));
+  const nota =
+    pct >= exigenciaValida
+      ? 4 + ((pct - exigenciaValida) / (100 - exigenciaValida)) * 3
+      : 1 + (pct / exigenciaValida) * 3;
+  return Math.round(nota * 10) / 10;
 }
 
 /** Normaliza un puntaje dentro de una escala arbitraria (ej. 1-5) a 0-100. */
@@ -125,16 +148,24 @@ export function calcularResultadoEstudiante(params: {
   criterios: CriterioInfo[];
   escalaMin: number;
   escalaMax: number;
+  escalaExigencia: number;
   pesos: PesosPeriodo;
 }): ResultadoCalculado {
-  const { autoevaluacion, coevaluaciones, docente, criterios, escalaMin, escalaMax, pesos } = params;
+  const { autoevaluacion, coevaluaciones, docente, criterios, escalaMin, escalaMax, escalaExigencia, pesos } = params;
+
+  // Cada tipo de evaluación solo pondera los criterios que le aplican; así
+  // el peso se renormaliza a 100% entre los criterios realmente evaluados
+  // por esa fuente en vez de diluirse por los que no le corresponden.
+  const criteriosAuto = criterios.filter((c) => c.aplicaAutoevaluacion);
+  const criteriosCo = criterios.filter((c) => c.aplicaCoevaluacion);
+  const criteriosDoc = criterios.filter((c) => c.aplicaDocente);
 
   const notaAutoevaluacion = autoevaluacion
-    ? calcularNotaEvaluacion(autoevaluacion.detalles, criterios, escalaMin, escalaMax)
+    ? calcularNotaEvaluacion(autoevaluacion.detalles, criteriosAuto, escalaMin, escalaMax)
     : null;
 
   const notasCoevaluacionIndividuales = coevaluaciones.map((c) =>
-    calcularNotaEvaluacion(c.detalles, criterios, escalaMin, escalaMax)
+    calcularNotaEvaluacion(c.detalles, criteriosCo, escalaMin, escalaMax)
   );
   const notaCoevaluacion =
     notasCoevaluacionIndividuales.length > 0
@@ -142,7 +173,7 @@ export function calcularResultadoEstudiante(params: {
       : null;
 
   const notaDocente = docente
-    ? calcularNotaEvaluacion(docente.detalles, criterios, escalaMin, escalaMax)
+    ? calcularNotaEvaluacion(docente.detalles, criteriosDoc, escalaMin, escalaMax)
     : null;
 
   const notaFinal =
@@ -151,6 +182,8 @@ export function calcularResultadoEstudiante(params: {
       { valor: notaCoevaluacion, peso: pesos.pesoCoevaluacion },
       { valor: notaDocente, peso: pesos.pesoDocente },
     ]) ?? 0;
+
+  const notaEscala1a7 = convertirAEscala1a7(notaFinal, escalaExigencia);
 
   const completo = notaAutoevaluacion !== null && notaCoevaluacion !== null && notaDocente !== null;
 
@@ -192,6 +225,7 @@ export function calcularResultadoEstudiante(params: {
     notaCoevaluacion,
     notaDocente,
     notaFinal,
+    notaEscala1a7,
     completo,
     detalleCriterios,
     retroalimentacion,

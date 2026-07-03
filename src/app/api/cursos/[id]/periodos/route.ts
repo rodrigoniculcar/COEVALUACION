@@ -13,6 +13,7 @@ const crearPeriodoSchema = z.object({
   pesoAutoevaluacion: z.number().min(0).max(100),
   pesoCoevaluacion: z.number().min(0).max(100),
   pesoDocente: z.number().min(0).max(100),
+  escalaExigencia: z.number().int().min(1).max(99).default(60),
 });
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         pesoAutoevaluacion: body.pesoAutoevaluacion,
         pesoCoevaluacion: body.pesoCoevaluacion,
         pesoDocente: body.pesoDocente,
+        escalaExigencia: body.escalaExigencia,
         estado: "BORRADOR",
       },
     });

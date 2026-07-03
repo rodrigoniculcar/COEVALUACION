@@ -7,7 +7,7 @@ interface Curso {
   id: string;
   nombre: string;
   codigo: string;
-  _count: { inscripciones: number; grupos: number; periodos: number };
+  _count: { inscripciones: number; periodos: number };
 }
 
 export default function DocenteDashboard() {
@@ -80,7 +80,6 @@ export default function DocenteDashboard() {
               <p className="text-sm text-slate-500">Código: {c.codigo}</p>
               <div className="mt-3 flex gap-4 text-xs text-slate-500">
                 <span>{c._count.inscripciones} estudiantes</span>
-                <span>{c._count.grupos} equipos</span>
                 <span>{c._count.periodos} periodos</span>
               </div>
             </Link>

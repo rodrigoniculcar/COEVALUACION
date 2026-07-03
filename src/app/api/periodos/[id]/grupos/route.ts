@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireDocente } from "@/lib/session";
-import { requireCursoDelDocente } from "@/lib/cursos";
+import { requireDocente, ErrorAcceso } from "@/lib/session";
+import { requirePeriodoDelDocente } from "@/lib/cursos";
 import { manejarError } from "@/lib/api-helpers";
-import { ErrorAcceso } from "@/lib/session";
 
 const crearGrupoSchema = z.object({
   nombre: z.string().min(1).max(80),
   estudianteIds: z.array(z.string()).min(1).max(50),
 });
 
+// Los equipos pertenecen a un periodo específico (no al curso en general):
+// la conformación de equipos puede cambiar de una evaluación a otra.
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const docente = await requireDocente();
-    await requireCursoDelDocente(params.id, docente.id);
+    await requirePeriodoDelDocente(params.id, docente.id);
 
     const grupos = await prisma.grupo.findMany({
-      where: { cursoId: params.id },
+      where: { periodoId: params.id },
       include: { miembros: { include: { estudiante: { select: { id: true, nombre: true, email: true } } } } },
       orderBy: { nombre: "asc" },
     });
@@ -31,11 +32,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const docente = await requireDocente();
-    await requireCursoDelDocente(params.id, docente.id);
+    const periodo = await requirePeriodoDelDocente(params.id, docente.id);
     const body = crearGrupoSchema.parse(await req.json());
 
     const inscritos = await prisma.inscripcion.findMany({
-      where: { cursoId: params.id, estudianteId: { in: body.estudianteIds } },
+      where: { cursoId: periodo.cursoId, estudianteId: { in: body.estudianteIds } },
     });
     if (inscritos.length !== body.estudianteIds.length) {
       throw new ErrorAcceso("Uno o más estudiantes no están inscritos en este curso", 400);
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const grupo = await prisma.grupo.create({
       data: {
-        cursoId: params.id,
+        periodoId: params.id,
         nombre: body.nombre,
         miembros: { create: body.estudianteIds.map((estudianteId) => ({ estudianteId })) },
       },

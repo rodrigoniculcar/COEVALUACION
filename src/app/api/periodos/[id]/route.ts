@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireDocente, ErrorAcceso } from "@/lib/session";
+import { requirePeriodoDelDocente } from "@/lib/cursos";
 import { recalcularResultadosPeriodo } from "@/lib/resultados";
 import { manejarError } from "@/lib/api-helpers";
 
@@ -14,17 +15,8 @@ const actualizarPeriodoSchema = z.object({
   pesoAutoevaluacion: z.number().min(0).max(100).optional(),
   pesoCoevaluacion: z.number().min(0).max(100).optional(),
   pesoDocente: z.number().min(0).max(100).optional(),
+  escalaExigencia: z.number().int().min(1).max(99).optional(),
 });
-
-async function requirePeriodoDelDocente(periodoId: string, docenteId: string) {
-  const periodo = await prisma.periodoEvaluacion.findUnique({
-    where: { id: periodoId },
-    include: { curso: true },
-  });
-  if (!periodo) throw new ErrorAcceso("Periodo no encontrado", 404);
-  if (periodo.curso.docenteId !== docenteId) throw new ErrorAcceso("No tienes acceso a este periodo", 403);
-  return periodo;
-}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -40,9 +32,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-// Edita el periodo (nombre, fechas, rúbrica, pesos) y/o transiciona su
-// estado. Al pasar a CERRADO se recalculan y publican los resultados
-// finales de todos los estudiantes del curso.
+// Edita el periodo (nombre, fechas, rúbrica, pesos, exigencia) y/o
+// transiciona su estado. Al pasar a CERRADO se recalculan y publican los
+// resultados finales de todos los estudiantes del curso.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const docente = await requireDocente();
@@ -96,11 +88,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         pesoAutoevaluacion: body.pesoAutoevaluacion,
         pesoCoevaluacion: body.pesoCoevaluacion,
         pesoDocente: body.pesoDocente,
+        escalaExigencia: body.escalaExigencia,
       },
       include: { rubrica: true },
     });
 
-    if (body.estado === "CERRADO") {
+    // Cualquier cambio (pesos, exigencia, o el cierre) puede afectar la nota
+    // ya calculada, así que se recalcula salvo que solo se haya cambiado el
+    // nombre o las fechas (que no afectan el cálculo).
+    const afectaCalculo =
+      body.estado === "CERRADO" ||
+      body.pesoAutoevaluacion !== undefined ||
+      body.pesoCoevaluacion !== undefined ||
+      body.pesoDocente !== undefined ||
+      body.escalaExigencia !== undefined;
+    if (afectaCalculo) {
       await recalcularResultadosPeriodo(periodo.id);
     }
 

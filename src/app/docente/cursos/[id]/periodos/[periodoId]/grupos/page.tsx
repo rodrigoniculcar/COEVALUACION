@@ -16,8 +16,8 @@ interface Grupo {
   miembros: { estudiante: Estudiante }[];
 }
 
-export default function GruposPage() {
-  const { id } = useParams<{ id: string }>();
+export default function GruposPeriodoPage() {
+  const { id, periodoId } = useParams<{ id: string; periodoId: string }>();
   const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [nombre, setNombre] = useState("");
@@ -33,7 +33,7 @@ export default function GruposPage() {
   async function cargarTodo() {
     const [resEst, resGrupos] = await Promise.all([
       fetch(`/api/cursos/${id}/estudiantes`),
-      fetch(`/api/cursos/${id}/grupos`),
+      fetch(`/api/periodos/${periodoId}/grupos`),
     ]);
     const dataEst = await resEst.json();
     const dataGrupos = await resGrupos.json();
@@ -43,7 +43,8 @@ export default function GruposPage() {
 
   useEffect(() => {
     cargarTodo();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, periodoId]);
 
   function toggleSeleccionado(estId: string) {
     setSeleccionados((prev) => (prev.includes(estId) ? prev.filter((x) => x !== estId) : [...prev, estId]));
@@ -56,7 +57,7 @@ export default function GruposPage() {
       setError("Selecciona al menos un estudiante para el equipo.");
       return;
     }
-    const res = await fetch(`/api/cursos/${id}/grupos`, {
+    const res = await fetch(`/api/periodos/${periodoId}/grupos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nombre, estudianteIds: seleccionados }),
@@ -116,12 +117,12 @@ export default function GruposPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <VolverLink href={`/docente/cursos/${id}`} texto="Volver al curso" />
-        <h1 className="mt-2 text-2xl font-bold">Equipos de trabajo</h1>
+        <VolverLink href={`/docente/cursos/${id}/periodos`} texto="Volver a periodos" />
+        <h1 className="mt-2 text-2xl font-bold">Equipos de este periodo</h1>
         <p className="mt-1 text-slate-600">
-          Agrupa a los estudiantes para la coevaluación entre pares. Puedes editar un equipo (nombre e
-          integrantes) cuando cambie la conformación para un nuevo periodo: los resultados ya calculados de
-          periodos anteriores conservan el equipo tal como era en ese momento.
+          Los equipos son propios de este periodo de evaluación: puedes conformarlos distinto en cada
+          evaluación. Los resultados ya calculados de otros periodos conservan su propio equipo histórico,
+          sin importar los cambios que hagas aquí.
         </p>
       </div>
 

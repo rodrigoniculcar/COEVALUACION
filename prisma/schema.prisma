@@ -61,7 +61,6 @@ model Curso {
   createdAt DateTime @default(now())
 
   inscripciones Inscripcion[]
-  grupos        Grupo[]
   rubricas      Rubrica[]
   periodos      PeriodoEvaluacion[]
 
@@ -82,19 +81,21 @@ model Inscripcion {
   @@index([estudianteId])
 }
 
-// Equipo de trabajo dentro de un curso.
+// Equipo de trabajo para UN periodo de evaluación específico (no del curso en
+// general): la conformación de equipos puede cambiar de una evaluación a
+// otra, así que cada PeriodoEvaluacion tiene su propio conjunto de Grupo.
 model Grupo {
   id        String   @id @default(cuid())
-  cursoId   String
+  periodoId String
   nombre    String
   createdAt DateTime @default(now())
 
-  curso     Curso          @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  periodo   PeriodoEvaluacion @relation(fields: [periodoId], references: [id], onDelete: Cascade)
   miembros  MiembroGrupo[]
   evaluaciones Evaluacion[]
   resultados   Resultado[]
 
-  @@unique([cursoId, nombre])
+  @@unique([periodoId, nombre])
 }
 
 model MiembroGrupo {
@@ -125,14 +126,21 @@ model Rubrica {
 
 // Criterio individual de la rúbrica. `ponderacion` es el peso (%) de este
 // criterio dentro de la nota de UNA evaluación (auto/co/docente); la suma
-// de ponderaciones de los criterios de una rúbrica debe ser 100.
+// de ponderaciones de los criterios de una rúbrica debe ser 100 (calculada
+// sobre los criterios aplicables a cada tipo de evaluación por separado).
+// Los flags `aplicaX` permiten que un criterio solo lo vea/responda cierto
+// tipo de evaluador (ej. un criterio que solo evalúa el docente).
 model CriterioRubrica {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   rubricaId   String
   nombre      String
   descripcion String?
   ponderacion Float
-  orden       Int    @default(0)
+  orden       Int     @default(0)
+
+  aplicaAutoevaluacion Boolean @default(true)
+  aplicaCoevaluacion   Boolean @default(true)
+  aplicaDocente        Boolean @default(true)
 
   rubrica  Rubrica            @relation(fields: [rubricaId], references: [id], onDelete: Cascade)
   detalles DetalleEvaluacion[]
@@ -153,11 +161,15 @@ model PeriodoEvaluacion {
   pesoAutoevaluacion Float  @default(20)
   pesoCoevaluacion   Float  @default(40)
   pesoDocente        Float  @default(40)
+  // Porcentaje de exigencia para convertir la nota 0-100 a escala chilena
+  // 1.0-7.0 (60 o 70 son los valores típicos; ver src/lib/grading.ts).
+  escalaExigencia    Int           @default(60)
   estado      EstadoPeriodo @default(BORRADOR)
   createdAt   DateTime      @default(now())
 
   curso       Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
   rubrica     Rubrica      @relation(fields: [rubricaId], references: [id])
+  grupos       Grupo[]
   evaluaciones Evaluacion[]
   resultados   Resultado[]
 
@@ -214,6 +226,9 @@ model Resultado {
   notaCoevaluacion   Float?
   notaDocente        Float?
   notaFinal          Float
+  // notaFinal (0-100) convertida a escala chilena 1.0-7.0 según la
+  // exigencia configurada en el periodo (PeriodoEvaluacion.escalaExigencia).
+  notaEscala1a7      Float @default(1)
 
   // Foto histórica del equipo al momento del cálculo: si más adelante el
   // docente renombra el grupo o cambia sus integrantes para un nuevo

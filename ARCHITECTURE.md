@@ -10,7 +10,7 @@ propuesta.
 | Rol | Puede hacer |
 |---|---|
 | **Administrador** | Crear cuentas docente y estudiante directamente (`/admin`), sin pasar por el registro público; activar/desactivar cualquier cuenta; ver y matricular estudiantes en cualquier curso de la plataforma, sin importar el docente dueño. |
-| **Docente** | Crear cursos, cargar estudiantes (credenciales, incluida importación desde Excel/CSV), definir y **editar** equipos, configurar rúbricas ponderadas, crear y **editar** periodos de evaluación con pesos auto/co/docente, evaluar el desempeño de cada estudiante, abrir/cerrar periodos, restablecer contraseñas de estudiantes, ver y descargar el panel de resultados (PDF/Excel). |
+| **Docente** | Crear cursos, cargar estudiantes (credenciales, incluida importación desde Excel/CSV), configurar rúbricas ponderadas (con criterios cuya visibilidad se puede restringir por tipo de evaluador), crear y **editar** periodos de evaluación con pesos auto/co/docente y exigencia de nota (60%/70%), definir y **editar** los equipos **de cada periodo** por separado, evaluar el desempeño de cada estudiante, abrir/cerrar periodos, restablecer contraseñas de estudiantes, ver y descargar el panel de resultados (PDF/Excel) con la nota final tanto en porcentaje como en escala chilena 1.0-7.0. |
 | **Estudiante** | Iniciar sesión con las credenciales que le entrega el docente, autoevaluarse, coevaluar a cada integrante de su equipo bajo la misma rúbrica, ver sus propios resultados una vez cerrado el periodo. |
 
 El campo `User.activo` permite al administrador desactivar una cuenta sin borrarla: `authorize()` en
@@ -22,8 +22,10 @@ Las cuentas iniciales de Administrador y Docente se crean automáticamente en ca
 cuentas deben rotarse después del primer login (`PATCH /api/perfil/password`), ya que el valor inicial queda
 en el código fuente.
 
-Flujo de datos: `Curso → Inscripcion (matrícula) → Grupo/MiembroGrupo (equipos) → Rubrica/CriterioRubrica →
-PeriodoEvaluacion (pesos) → Evaluacion/DetalleEvaluacion (auto/co/docente) → Resultado (nota final + feedback)`.
+Flujo de datos: `Curso → Inscripcion (matrícula) → Rubrica/CriterioRubrica → PeriodoEvaluacion (pesos +
+exigencia) → Grupo/MiembroGrupo (equipos propios del periodo) → Evaluacion/DetalleEvaluacion (auto/co/docente)
+→ Resultado (nota final + feedback)`. Los equipos cuelgan del periodo (no del curso) porque la conformación de
+grupos puede cambiar de una evaluación a otra dentro del mismo curso (ver sección 2).
 
 ## 2. Modelo de datos
 
@@ -31,31 +33,46 @@ Implementado en `prisma/schema.prisma`. Entidades principales:
 
 - **User** — cuenta única con `rol` (`DOCENTE` | `ESTUDIANTE`). Un mismo modelo de usuario para ambos roles
   simplifica la autenticación; el rol determina qué puede hacer (ver sección de seguridad).
-- **Curso** — pertenece a un docente (`docenteId`). Contiene inscripciones, grupos, rúbricas y periodos.
+- **Curso** — pertenece a un docente (`docenteId`). Contiene inscripciones, rúbricas y periodos.
 - **Inscripcion** — matrícula de un estudiante en un curso (N:M entre `User` y `Curso` con datos propios).
-- **Grupo** / **MiembroGrupo** — equipo de trabajo dentro de un curso y su relación N:M con estudiantes.
-- **Rubrica** — reutilizable dentro de un curso; define una escala (`escalaMin`–`escalaMax`, ej. 1-5).
-- **CriterioRubrica** — criterio de la rúbrica con su `ponderacion` (%). La suma de ponderaciones de los
-  criterios de una rúbrica debe ser 100 (validado en `POST /api/cursos/[id]/rubricas`).
 - **PeriodoEvaluacion** — ventana de tiempo que usa una rúbrica y define `pesoAutoevaluacion`,
-  `pesoCoevaluacion` y `pesoDocente` (deben sumar 100). Tiene un `estado`: `BORRADOR → ABIERTO → CERRADO`.
+  `pesoCoevaluacion` y `pesoDocente` (deben sumar 100) y `escalaExigencia` (60 o 70, el % que se traduce a la
+  nota de aprobación 4.0 en la escala 1-7). Tiene un `estado`: `BORRADOR → ABIERTO → CERRADO`.
+- **Grupo** / **MiembroGrupo** — equipo de trabajo que pertenece a un **periodo** (`periodoId`, no al curso) y
+  su relación N:M con estudiantes. Un mismo curso puede tener conformaciones de equipo completamente distintas
+  en cada periodo de evaluación (p. ej. Equipos 1-5 en el Corte 1 y una reorganización distinta en el Corte 2);
+  por eso el equipo se crea y se filtra dentro del periodo (`/docente/cursos/[id]/periodos/[periodoId]/grupos`,
+  `src/app/api/periodos/[id]/grupos/route.ts`) en vez de vivir a nivel de curso.
+- **Rubrica** — reutilizable dentro de un curso y asignable a uno o más periodos; define una escala
+  (`escalaMin`–`escalaMax`, admite `escalaMin = 0`).
+- **CriterioRubrica** — criterio de la rúbrica con su `ponderacion` (%) y tres flags independientes,
+  `aplicaAutoevaluacion` / `aplicaCoevaluacion` / `aplicaDocente` (todas `true` por defecto), que controlan
+  qué tipos de evaluador ven y llenan ese criterio — por ejemplo, un criterio de "puntualidad" puede
+  restringirse a que solo lo califique el docente. La suma de ponderaciones de los criterios de una rúbrica
+  debe ser 100 (validado en `POST /api/cursos/[id]/rubricas`) y cada criterio debe aplicar a al menos un tipo
+  de evaluador.
 - **Evaluacion** — una "planilla" de rúbrica llenada por un `evaluador` sobre un `evaluado`, de tipo
   `AUTOEVALUACION` (evaluador = evaluado), `COEVALUACION` (evaluador = compañero de equipo) o `DOCENTE`
   (evaluador = docente del curso). Restringida por una clave única
   `(periodoId, tipo, evaluadorId, evaluadoId)` que impide doble envío (el reenvío actualiza la evaluación
-  existente en vez de duplicarla).
-- **DetalleEvaluacion** — puntaje (dentro de la escala de la rúbrica) que una `Evaluacion` asigna a cada
-  `CriterioRubrica`.
+  existente en vez de duplicarla). El backend valida que los `detalles` enviados correspondan exactamente a
+  los criterios aplicables a ese `tipo` (ver `criteriosAplicables()` en
+  `src/app/api/periodos/[id]/evaluaciones/route.ts`).
+- **DetalleEvaluacion** — puntaje (dentro de la escala de la rúbrica, que puede partir en 0) que una
+  `Evaluacion` asigna a cada `CriterioRubrica`. En la UI se captura con un control de estrellas
+  (`src/components/EscalaRating.tsx`) en vez de un slider numérico, para que sea más intuitivo distinguir
+  "menos" de "más".
 - **Resultado** — nota final ya calculada y cacheada por estudiante y periodo: `notaAutoevaluacion`,
-  `notaCoevaluacion`, `notaDocente`, `notaFinal`, un JSON `detalleCriterios` (promedio por criterio, usado
-  para detectar puntos críticos) y un texto `retroalimentacion` generado automáticamente. Se recalcula cada
-  vez que se registra una evaluación y al cerrar el periodo (`src/lib/resultados.ts`).
+  `notaCoevaluacion`, `notaDocente`, `notaFinal` (0-100), `notaEscala1a7` (1.0-7.0, ver sección 4), un JSON
+  `detalleCriterios` (promedio por criterio, usado para detectar puntos críticos) y un texto
+  `retroalimentacion` generado automáticamente. Se recalcula cada vez que se registra una evaluación y al
+  cerrar el periodo (`src/lib/resultados.ts`).
 
 ```
-User ──< Inscripcion >── Curso ──< Grupo ──< MiembroGrupo >── User
- │                          │
- │                          ├──< Rubrica ──< CriterioRubrica
+User ──< Inscripcion >── Curso ──< Rubrica ──< CriterioRubrica
  │                          └──< PeriodoEvaluacion >── Rubrica
+ │                                  │
+ │                                  └──< Grupo ──< MiembroGrupo >── User
  │
  ├──< Evaluacion (evaluador) ──< DetalleEvaluacion >── CriterioRubrica
  ├──< Evaluacion (evaluado)
@@ -112,6 +129,25 @@ no ha evaluado), su peso se **redistribuye proporcionalmente** entre los compone
 tratarse como 0 — así una nota parcial no penaliza injustamente al estudiante mientras el periodo sigue
 abierto; el resultado se marca como `completo: false` y el texto de retroalimentación lo indica.
 
+**Visibilidad de criterios por tipo de evaluador.** Antes de calcular `notaEvaluacion` para una fuente dada
+(auto/co/docente), la lista de criterios se filtra a los que tienen el flag correspondiente en `true`
+(`aplicaAutoevaluacion`/`aplicaCoevaluacion`/`aplicaDocente`). El filtrado ocurre **antes** de sumar
+`pesoTotal`, no después, para que los criterios no aplicables a esa fuente no diluyan el promedio ponderado
+de los que sí aplican (`calcularResultadoEstudiante` en `src/lib/grading.ts`).
+
+**Nota final en escala chilena 1.0-7.0.** Además de `notaFinal` (0-100), se calcula `notaEscala1a7`
+mediante `convertirAEscala1a7(porcentaje, exigencia)`: la `exigencia` (`PeriodoEvaluacion.escalaExigencia`,
+60 o 70) es el porcentaje que se traduce a la nota de aprobación 4.0. Bajo la exigencia, la nota interpola
+linealmente entre 1.0 y 4.0; en o sobre la exigencia, interpola entre 4.0 y 7.0:
+
+```
+si pct < exigencia:  nota = 1 + (pct / exigencia) * 3
+si pct >= exigencia: nota = 4 + ((pct - exigencia) / (100 - exigencia)) * 3
+```
+
+El resultado se redondea a un decimal. Cambiar la exigencia de un periodo ya cerrado dispara un
+recálculo (`PATCH /api/periodos/[id]`), igual que un cambio de pesos.
+
 **Puntos críticos (indicadores más bajos).** Además del total, se calcula el mismo promedio ponderado
 *por criterio* (no solo el agregado), lo que permite ordenar los criterios de menor a mayor puntaje y
 marcar como "punto crítico" a los que caen bajo un umbral (60/100). Este mismo cálculo se agrega por
@@ -156,11 +192,13 @@ PDF).
 2. **Docente** carga estudiantes pegando `Nombre, correo` por línea (`/docente/cursos/[id]/estudiantes`).
    Si el correo no existe, se crea la cuenta con una contraseña temporal que se muestra **una sola vez** para
    que el docente la comparta por un canal seguro.
-3. **Docente** arma los equipos seleccionando estudiantes (`/docente/cursos/[id]/grupos`).
-4. **Docente** configura una rúbrica con criterios y ponderaciones que suman 100%
-   (`/docente/cursos/[id]/rubricas`).
-5. **Docente** crea un periodo de evaluación eligiendo la rúbrica, las fechas y los pesos de
-   auto/co/docente (`/docente/cursos/[id]/periodos`) y lo **abre**.
+3. **Docente** configura una rúbrica con criterios y ponderaciones que suman 100%, ajustando opcionalmente
+   qué tipo de evaluador ve cada criterio (`/docente/cursos/[id]/rubricas`).
+4. **Docente** crea un periodo de evaluación eligiendo la rúbrica, las fechas, los pesos de auto/co/docente
+   y la exigencia para la nota 1-7 (`/docente/cursos/[id]/periodos`) y lo **abre**.
+5. **Docente** arma los equipos de ese periodo seleccionando estudiantes
+   (`/docente/cursos/[id]/periodos/[periodoId]/grupos`) — puede repetir este paso con una conformación
+   distinta en cada periodo del mismo curso.
 6. **Estudiante** inicia sesión, ve el periodo abierto (`/estudiante`) y completa su autoevaluación y la
    coevaluación de cada compañero de equipo (`/estudiante/periodos/[id]/evaluar`), con un checklist de
    pendientes.
@@ -215,7 +253,7 @@ PDF).
 cp .env.example .env          # completar DATABASE_URL y NEXTAUTH_SECRET
 npm install
 npm run db:push               # crea las tablas según prisma/schema.prisma
-npm run db:seed                # datos de demo: docente + 6 estudiantes + 2 equipos + 1 periodo abierto
+npm run db:seed                # datos de demo: docente + 6 estudiantes + 1 periodo abierto con 2 equipos
 npm run dev
 ```
 

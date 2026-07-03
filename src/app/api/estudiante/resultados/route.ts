@@ -30,6 +30,7 @@ export async function GET() {
       notaCoevaluacion: r.notaCoevaluacion,
       notaDocente: r.notaDocente,
       notaFinal: r.notaFinal,
+      notaEscala1a7: r.notaEscala1a7,
       retroalimentacion: r.retroalimentacion,
       detalleCriterios: r.detalleCriterios as unknown as CriterioResultado[],
     }));

@@ -7,7 +7,7 @@ interface Curso {
   nombre: string;
   codigo: string;
   docente: { nombre: string; email: string };
-  _count: { inscripciones: number; grupos: number; periodos: number };
+  _count: { inscripciones: number; periodos: number };
 }
 
 interface Estudiante {
@@ -108,7 +108,6 @@ export default function AdminCursosPage() {
               <th>Código</th>
               <th>Docente</th>
               <th>Estudiantes</th>
-              <th>Equipos</th>
               <th>Periodos</th>
             </tr>
           </thead>
@@ -119,7 +118,6 @@ export default function AdminCursosPage() {
                 <td>{c.codigo}</td>
                 <td className="text-slate-500">{c.docente.nombre}</td>
                 <td>{c._count.inscripciones}</td>
-                <td>{c._count.grupos}</td>
                 <td>{c._count.periodos}</td>
               </tr>
             ))}

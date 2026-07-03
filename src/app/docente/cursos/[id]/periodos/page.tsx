@@ -19,6 +19,7 @@ interface Periodo {
   pesoAutoevaluacion: number;
   pesoCoevaluacion: number;
   pesoDocente: number;
+  escalaExigencia: number;
   rubrica: Rubrica;
 }
 
@@ -49,6 +50,7 @@ export default function PeriodosPage() {
   const [pesoAutoevaluacion, setPesoAutoevaluacion] = useState(20);
   const [pesoCoevaluacion, setPesoCoevaluacion] = useState(40);
   const [pesoDocente, setPesoDocente] = useState(40);
+  const [escalaExigencia, setEscalaExigencia] = useState(60);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
 
@@ -61,6 +63,7 @@ export default function PeriodosPage() {
     pesoAutoevaluacion: 0,
     pesoCoevaluacion: 0,
     pesoDocente: 0,
+    escalaExigencia: 60,
   });
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
@@ -106,6 +109,7 @@ export default function PeriodosPage() {
         pesoAutoevaluacion,
         pesoCoevaluacion,
         pesoDocente,
+        escalaExigencia,
       }),
     });
     const data = await res.json();
@@ -142,6 +146,7 @@ export default function PeriodosPage() {
       pesoAutoevaluacion: p.pesoAutoevaluacion,
       pesoCoevaluacion: p.pesoCoevaluacion,
       pesoDocente: p.pesoDocente,
+      escalaExigencia: p.escalaExigencia,
     });
   }
 
@@ -164,6 +169,7 @@ export default function PeriodosPage() {
         pesoAutoevaluacion: edicion.pesoAutoevaluacion,
         pesoCoevaluacion: edicion.pesoCoevaluacion,
         pesoDocente: edicion.pesoDocente,
+        escalaExigencia: edicion.escalaExigencia,
       }),
     });
     const data = await res.json();
@@ -263,6 +269,17 @@ export default function PeriodosPage() {
             Suma: {sumaPesos}%
           </span>
         </div>
+        <div className="w-56">
+          <label className="label">Exigencia para nota 1-7</label>
+          <select
+            className="input"
+            value={escalaExigencia}
+            onChange={(e) => setEscalaExigencia(Number(e.target.value))}
+          >
+            <option value={60}>60% (nota 4.0)</option>
+            <option value={70}>70% (nota 4.0)</option>
+          </select>
+        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button className="btn-primary self-start" disabled={cargando}>
           {cargando ? "Creando..." : "Crear periodo"}
@@ -359,6 +376,17 @@ export default function PeriodosPage() {
                     Suma: {sumaPesosEdicion}%
                   </span>
                 </div>
+                <div className="w-56">
+                  <label className="label">Exigencia para nota 1-7</label>
+                  <select
+                    className="input"
+                    value={edicion.escalaExigencia}
+                    onChange={(e) => setEdicion((prev) => ({ ...prev, escalaExigencia: Number(e.target.value) }))}
+                  >
+                    <option value={60}>60% (nota 4.0)</option>
+                    <option value={70}>70% (nota 4.0)</option>
+                  </select>
+                </div>
                 {errorEdicion && <p className="text-sm text-red-600">{errorEdicion}</p>}
                 <div className="flex gap-2">
                   <button className="btn-primary" onClick={() => guardarEdicion(p)} disabled={guardandoEdicion}>
@@ -402,6 +430,9 @@ export default function PeriodosPage() {
                   <button className="btn-secondary" onClick={() => iniciarEdicion(p)}>
                     Editar
                   </button>
+                  <Link href={`/docente/cursos/${id}/periodos/${p.id}/grupos`} className="btn-secondary">
+                    Equipos
+                  </Link>
                   <Link href={`/docente/cursos/${id}/periodos/${p.id}/evaluar`} className="btn-secondary">
                     Evaluar estudiantes
                   </Link>

@@ -17,7 +17,7 @@ export async function GET() {
       const cursos = await prisma.curso.findMany({
         where: { docenteId: usuario.id },
         orderBy: { createdAt: "desc" },
-        include: { _count: { select: { inscripciones: true, grupos: true, periodos: true } } },
+        include: { _count: { select: { inscripciones: true, periodos: true } } },
       });
       return NextResponse.json({ cursos });
     }

@@ -13,7 +13,6 @@ export async function GET() {
         curso: {
           include: {
             periodos: { where: { estado: { in: ["ABIERTO", "CERRADO"] } }, orderBy: { createdAt: "desc" } },
-            grupos: { where: { miembros: { some: { estudianteId: estudiante.id } } } },
           },
         },
       },

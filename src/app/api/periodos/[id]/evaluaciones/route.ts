@@ -18,6 +18,20 @@ const enviarEvaluacionSchema = z.object({
   detalles: z.array(detalleSchema).min(1),
 });
 
+// Cada criterio puede estar restringido a solo algunos tipos de evaluador
+// (ver CriterioRubrica.aplicaX); un formulario de un tipo dado solo debe
+// mostrar/exigir los criterios aplicables a ese tipo.
+function criteriosAplicables<T extends { aplicaAutoevaluacion: boolean; aplicaCoevaluacion: boolean; aplicaDocente: boolean }>(
+  criterios: T[],
+  tipo: "AUTOEVALUACION" | "COEVALUACION" | "DOCENTE"
+): T[] {
+  return criterios.filter((c) => {
+    if (tipo === "AUTOEVALUACION") return c.aplicaAutoevaluacion;
+    if (tipo === "COEVALUACION") return c.aplicaCoevaluacion;
+    return c.aplicaDocente;
+  });
+}
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const usuario = await requireUsuario();
@@ -54,8 +68,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: body.grupoId },
       include: { miembros: true },
     });
-    if (!grupo || grupo.cursoId !== periodo.cursoId) {
-      throw new ErrorAcceso("El grupo indicado no pertenece a este curso", 400);
+    if (!grupo || grupo.periodoId !== periodo.id) {
+      throw new ErrorAcceso("El equipo indicado no pertenece a este periodo", 400);
     }
     const idsGrupo = grupo.miembros.map((m) => m.estudianteId);
 
@@ -76,12 +90,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (!idsGrupo.includes(body.evaluadoId)) throw new ErrorAcceso("El estudiante no pertenece a ese grupo", 400);
     }
 
-    const criterioIds = new Set(periodo.rubrica.criterios.map((c) => c.id));
+    const aplicables = criteriosAplicables(periodo.rubrica.criterios, body.tipo);
+    const criterioIds = new Set(aplicables.map((c) => c.id));
     if (body.detalles.some((d) => !criterioIds.has(d.criterioId))) {
-      throw new ErrorAcceso("Uno de los criterios no pertenece a la rúbrica del periodo", 400);
+      throw new ErrorAcceso("Uno de los criterios no aplica a este tipo de evaluación", 400);
     }
-    if (body.detalles.length !== periodo.rubrica.criterios.length) {
-      throw new ErrorAcceso("Debes calificar todos los criterios de la rúbrica", 400);
+    if (body.detalles.length !== aplicables.length) {
+      throw new ErrorAcceso("Debes calificar todos los criterios aplicables de la rúbrica", 400);
     }
     for (const d of body.detalles) {
       if (d.puntaje < periodo.rubrica.escalaMin || d.puntaje > periodo.rubrica.escalaMax) {

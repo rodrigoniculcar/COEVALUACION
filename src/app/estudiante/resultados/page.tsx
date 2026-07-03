@@ -33,6 +33,7 @@ interface Resultado {
   notaCoevaluacion: number | null;
   notaDocente: number | null;
   notaFinal: number;
+  notaEscala1a7: number;
   retroalimentacion: string;
   detalleCriterios: CriterioResultado[];
 }
@@ -86,9 +87,12 @@ export default function ResultadosEstudiantePage() {
                     )}
                   </p>
                 </div>
-                <span className="rounded-full bg-brand-500 px-4 py-1 text-lg font-bold text-white">
-                  {r.notaFinal.toFixed(1)}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-brand-500 px-4 py-1 text-lg font-bold text-white">
+                    {r.notaEscala1a7.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-slate-500">({r.notaFinal.toFixed(1)}%)</span>
+                </div>
               </div>
 
               <div className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">

@@ -14,7 +14,7 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       include: {
         docente: { select: { id: true, nombre: true, email: true } },
-        _count: { select: { inscripciones: true, grupos: true, periodos: true } },
+        _count: { select: { inscripciones: true, periodos: true } },
       },
     });
 

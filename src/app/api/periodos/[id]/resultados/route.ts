@@ -54,6 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       notaCoevaluacion: r.notaCoevaluacion,
       notaDocente: r.notaDocente,
       notaFinal: r.notaFinal,
+      notaEscala1a7: r.notaEscala1a7,
       retroalimentacion: r.retroalimentacion,
       detalleCriterios: r.detalleCriterios as unknown as CriterioResultado[],
     }));
@@ -71,6 +72,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       integrantes: integrantes.length,
       notaPromedio:
         integrantes.reduce((acc, i) => acc + i.notaFinal, 0) / (integrantes.length || 1),
+      notaEscala1a7Promedio:
+        integrantes.reduce((acc, i) => acc + i.notaEscala1a7, 0) / (integrantes.length || 1),
       indicadoresMasBajos: promedioIndicadores(integrantes.map((i) => i.detalleCriterios)).slice(0, 3),
     }));
 
@@ -79,6 +82,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       notaPromedio:
         individuos.length > 0
           ? individuos.reduce((acc, i) => acc + i.notaFinal, 0) / individuos.length
+          : 0,
+      notaEscala1a7Promedio:
+        individuos.length > 0
+          ? individuos.reduce((acc, i) => acc + i.notaEscala1a7, 0) / individuos.length
           : 0,
       indicadoresMasBajos: promedioIndicadores(individuos.map((i) => i.detalleCriterios)).slice(0, 5),
     };
