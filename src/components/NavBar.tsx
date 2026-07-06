@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 
@@ -19,9 +20,8 @@ export function NavBar({ links }: { links: { href: string; label: string }[] }) 
     <header className="no-print border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2 font-bold text-brand-600">
-            <span className="text-brand-500">Duoc</span>
-            <span className="text-navy-700">UC</span>
+          <Link href="/" className="flex items-center gap-2">
+            <Image src="/duoc-logo.png" alt="Duoc UC" width={112} height={28} priority className="h-7 w-auto" />
             <span className="hidden text-slate-400 sm:inline">· Coevaluación</span>
           </Link>
           <nav className="flex gap-5 text-sm text-slate-600">

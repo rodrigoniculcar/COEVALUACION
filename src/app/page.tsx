@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 // Página de inicio estática: no consulta sesión ni base de datos, por lo que
@@ -6,10 +7,9 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-8 px-6 text-center">
-      <div className="flex items-center justify-center gap-2 text-2xl font-bold tracking-tight">
-        <span className="text-brand-500">Duoc</span>
-        <span className="text-navy-600">UC</span>
-        <span className="text-slate-400">· Coevaluación</span>
+      <div className="flex items-center justify-center gap-2">
+        <Image src="/duoc-logo.png" alt="Duoc UC" width={160} height={40} priority className="h-9 w-auto" />
+        <span className="text-lg text-slate-400">· Coevaluación</span>
       </div>
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Autoevaluación y Coevaluación grupal</h1>

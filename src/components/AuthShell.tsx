@@ -33,9 +33,10 @@ export function AuthShell({
         <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 -right-16 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
 
-        <div className="relative z-10 flex items-center gap-2 text-xl font-bold tracking-tight">
-          <span className="text-brand-400">Duoc</span>
-          <span className="text-white">UC</span>
+        <div className="relative z-10 flex items-center gap-2">
+          <div className="rounded-lg bg-white px-3 py-1.5">
+            <Image src="/duoc-logo.png" alt="Duoc UC" width={140} height={35} className="h-7 w-auto" />
+          </div>
           <span className="text-sm font-normal text-navy-100/70">· Coevaluación</span>
         </div>
 
@@ -71,9 +72,8 @@ export function AuthShell({
       </div>
 
       <div className="flex w-full flex-col justify-center px-6 py-16 sm:px-10 lg:w-1/2 lg:px-16 xl:px-24">
-        <div className="mb-8 flex items-center gap-2 text-xl font-bold tracking-tight lg:hidden">
-          <span className="text-brand-500">Duoc</span>
-          <span className="text-navy-600">UC</span>
+        <div className="mb-8 lg:hidden">
+          <Image src="/duoc-logo.png" alt="Duoc UC" width={140} height={35} className="h-8 w-auto" />
         </div>
         <div className="mx-auto w-full max-w-sm">{children}</div>
       </div>
