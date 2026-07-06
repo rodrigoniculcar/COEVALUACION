@@ -84,6 +84,11 @@ model Asignatura {
 model PeriodoAcademico {
   id        String   @id @default(cuid())
   nombre    String   @unique
+  // Marca cuál es el semestre "vigente": el panel de resultados del
+  // estudiante lo usa para mostrar por defecto solo ese periodo (y dejar
+  // los anteriores detrás de un filtro). Solo debe haber uno en true a la
+  // vez (lo gestiona PATCH /api/periodos-academicos/[id]).
+  actual    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   secciones Seccion[]

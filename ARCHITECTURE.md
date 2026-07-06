@@ -11,7 +11,7 @@ propuesta.
 |---|---|
 | **Administrador** | Crear cuentas docente y estudiante directamente (`/admin`), sin pasar por el registro público; activar/desactivar cualquier cuenta; ver y matricular estudiantes en cualquier sección de la plataforma, sin importar el docente dueño. |
 | **Docente** | Tener varias asignaturas a cargo, cada una con una o más secciones (una por año-semestre); cargar estudiantes a cada sección (roster fijo, incluida importación desde Excel/CSV); crear/reutilizar/editar rúbricas de una biblioteca **compartida entre todos los docentes**; crear y editar evaluaciones por sección con pesos auto/co/docente y exigencia de nota (60%/70%); definir equipos **propios de cada evaluación**; agregar a otro docente ya existente como **coevaluador** de una evaluación específica; calificar a cada estudiante, abrir/cerrar evaluaciones, restablecer contraseñas de estudiantes, ver y descargar el panel de resultados (PDF/Excel) con la nota final en porcentaje y en escala chilena 1.0-7.0. |
-| **Estudiante** | Iniciar sesión con las credenciales que le entrega el docente, autoevaluarse, coevaluar a cada integrante de su equipo bajo la misma rúbrica, ver sus propios resultados una vez cerrada la evaluación. |
+| **Estudiante** | Iniciar sesión con las credenciales que le entrega el docente; ver cuántas evaluaciones tiene pendientes y sus plazos antes de entrar a autoevaluarse/coevaluar; ver sus resultados agrupados por asignatura y sección (por defecto solo el año-semestre actual, con filtro para revisar semestres anteriores) y descargarlos en PDF/Excel por asignatura. |
 
 El campo `User.activo` permite al administrador desactivar una cuenta sin borrarla: `authorize()` en
 `src/lib/auth.ts` rechaza el login si `activo = false`, aunque la contraseña sea correcta. Por diseño, no se
@@ -40,7 +40,9 @@ Implementado en `prisma/schema.prisma`. Entidades principales:
   varias secciones a su cargo.
 - **PeriodoAcademico** — catálogo compartido de años-semestre (ej. "2026-1", "2026-2"). Es global a toda la
   plataforma (no por docente) para evitar variantes de escritura del mismo periodo; cualquier docente puede
-  crear uno nuevo si no existe (`upsert` por `nombre`).
+  crear uno nuevo si no existe (`upsert` por `nombre`). El campo `actual` marca cuál es el semestre vigente
+  (solo uno a la vez); lo gestiona el administrador (`PATCH /api/periodos-academicos/[id]`, no cada docente
+  por separado) y el panel de resultados del estudiante lo usa para decidir qué mostrar por defecto.
 - **Seccion** — instancia concreta de una `Asignatura` ofrecida en un `PeriodoAcademico` específico, con su
   propio roster **fijo** de estudiantes (`Inscripcion`). Un mismo docente puede tener varias secciones a
   cargo de la misma asignatura en el mismo semestre (ej. Sección A y Sección B), y la lista de secciones se
@@ -235,16 +237,21 @@ PDF).
    existente como coevaluador, y luego la **abre**.
 6. **Docente** arma los equipos de esa evaluación seleccionando estudiantes de la sección — puede repetir
    este paso con una conformación distinta en cada evaluación de la misma sección.
-7. **Estudiante** inicia sesión, ve la evaluación abierta (`/estudiante`) y completa su autoevaluación y la
-   coevaluación de cada compañero de equipo (`/estudiante/periodos/[id]/evaluar`), con un checklist de
-   pendientes.
-8. **Docente** (y, si los hay, sus coevaluadores) evalúan a cada estudiante con la misma rúbrica.
+7. **Estudiante** inicia sesión y ve en `/estudiante` un aviso con cuántas evaluaciones tiene pendientes y el
+   plazo de cada una, luego completa su autoevaluación y la coevaluación de cada compañero de equipo
+   (`/estudiante/periodos/[id]/evaluar`), con un checklist de pendientes.
+8. **Docente** (y, si los hay, sus coevaluadores) evalúan a cada estudiante con la misma rúbrica; el
+   comentario que escribe es propio de cada estudiante — cambiar de estudiante dentro del mismo equipo
+   recarga el comentario ya guardado para ese estudiante (o lo deja vacío si aún no lo evalúa), nunca
+   conserva el que estaba escribiendo para el anterior.
 9. **Docente** cierra la evaluación; el sistema recalcula automáticamente la nota final de todos los
    estudiantes y genera la retroalimentación.
 10. **Docente** revisa el panel de resultados por sección, equipo e individuo, con los indicadores más bajos.
-11. **Estudiante** ve su nota final (en % y en escala 1-7), el detalle por criterio y su retroalimentación
-    (`/estudiante/resultados`) — solo visible una vez la evaluación está cerrada, para no sesgar la
-    coevaluación mientras está en curso.
+11. **Estudiante** ve sus resultados (`/estudiante/resultados`) — solo visible una vez la evaluación está
+    cerrada, para no sesgar la coevaluación mientras está en curso — agrupados por asignatura y, dentro de
+    cada una, por sección/año-semestre. Por defecto solo se muestra el año-semestre marcado como "actual"
+    (ver sección 2); un checkbox "Ver semestres anteriores" revela el resto. Cada asignatura tiene sus
+    propios botones para descargar el detalle en Excel o en PDF (impresión filtrada a esa asignatura).
 
 ## 6. Seguridad y autenticación
 

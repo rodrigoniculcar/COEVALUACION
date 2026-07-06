@@ -33,6 +33,7 @@ interface Grupo {
 interface EvaluacionExistente {
   tipo: string;
   evaluadoId: string;
+  comentario: string | null;
   detalles: { criterioId: string; puntaje: number }[];
 }
 
@@ -85,6 +86,10 @@ export default function EvaluarDocentePage() {
     [evaluaciones]
   );
 
+  // El comentario (igual que los puntajes) es propio de cada estudiante: al
+  // cambiar de estudiante dentro del mismo equipo hay que recargar el suyo
+  // (o dejarlo vacío si aún no lo has evaluado), nunca conservar el que
+  // estabas escribiendo para el estudiante anterior.
   function seleccionarEstudiante(estId: string) {
     setEstudianteId(estId);
     setMensaje(null);
@@ -94,8 +99,10 @@ export default function EvaluarDocentePage() {
       const nuevo: Record<string, number> = {};
       existente.detalles.forEach((d) => (nuevo[d.criterioId] = d.puntaje));
       setPuntajes(nuevo);
+      setComentario(existente.comentario ?? "");
     } else {
       setPuntajes({});
+      setComentario("");
     }
   }
 

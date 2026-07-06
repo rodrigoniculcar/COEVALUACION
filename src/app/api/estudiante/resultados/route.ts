@@ -14,7 +14,7 @@ export async function GET() {
     const resultados = await prisma.resultado.findMany({
       where: { estudianteId: estudiante.id, periodo: { estado: "CERRADO" } },
       include: {
-        periodo: { include: { seccion: { include: { asignatura: true } } } },
+        periodo: { include: { seccion: { include: { asignatura: true, periodoAcademico: true } } } },
       },
       orderBy: { calculadoAt: "desc" },
     });
@@ -22,8 +22,12 @@ export async function GET() {
     const datos = resultados.map((r) => ({
       periodoId: r.periodoId,
       periodoNombre: r.periodo.nombre,
+      asignaturaId: r.periodo.seccion.asignatura.id,
       asignaturaNombre: r.periodo.seccion.asignatura.nombre,
+      seccionId: r.periodo.seccion.id,
       seccionNombre: r.periodo.seccion.nombre,
+      periodoAcademicoNombre: r.periodo.seccion.periodoAcademico.nombre,
+      periodoAcademicoActual: r.periodo.seccion.periodoAcademico.actual,
       estadoPeriodo: r.periodo.estado,
       grupoNombre: r.grupoNombre,
       integrantesHistoricos: r.integrantesHistoricos as unknown as string[],

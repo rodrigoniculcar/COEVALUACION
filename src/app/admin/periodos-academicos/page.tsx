@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 interface PeriodoAcademico {
   id: string;
   nombre: string;
+  actual: boolean;
   createdAt: string;
 }
 
@@ -52,6 +53,21 @@ export default function AdminPeriodosAcademicosPage() {
     cargar();
   }
 
+  async function marcarActual(id: string) {
+    setError(null);
+    const res = await fetch(`/api/periodos-academicos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "No se pudo marcar como actual.");
+      return;
+    }
+    cargar();
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -89,10 +105,26 @@ export default function AdminPeriodosAcademicosPage() {
 
       <div className="card">
         <h2 className="font-semibold">Años-semestre existentes ({periodos.length})</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          El marcado como "Actual" es el que ven por defecto los estudiantes en su panel de resultados; los
+          demás quedan detrás del filtro de semestres anteriores.
+        </p>
         <ul className="mt-3 flex flex-col gap-1">
           {periodos.map((p) => (
-            <li key={p.id} className="border-t border-slate-100 py-2 text-sm">
-              {p.nombre}
+            <li key={p.id} className="flex items-center justify-between border-t border-slate-100 py-2 text-sm">
+              <span className="flex items-center gap-2">
+                {p.nombre}
+                {p.actual && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    Actual
+                  </span>
+                )}
+              </span>
+              {!p.actual && (
+                <button className="text-xs text-brand-600 hover:underline" onClick={() => marcarActual(p.id)}>
+                  Marcar como actual
+                </button>
+              )}
             </li>
           ))}
         </ul>

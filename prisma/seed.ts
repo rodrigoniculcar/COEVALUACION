@@ -47,7 +47,7 @@ async function main() {
   const periodoAcademico = await prisma.periodoAcademico.upsert({
     where: { nombre: "2026-1" },
     update: {},
-    create: { nombre: "2026-1" },
+    create: { nombre: "2026-1", actual: true },
   });
 
   // Una asignatura puede tener varias secciones a cargo del mismo docente;
