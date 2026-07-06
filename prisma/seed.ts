@@ -14,6 +14,14 @@ async function main() {
     create: { nombre: "María Fernández", email: "docente@demo.edu", passwordHash, rol: "DOCENTE" },
   });
 
+  // Segundo docente, usado como ejemplo de coevaluador: puede ser agregado
+  // por María a una evaluación específica para calificar junto con ella.
+  const docenteCoevaluador = await prisma.user.upsert({
+    where: { email: "coevaluador@demo.edu" },
+    update: {},
+    create: { nombre: "Jorge Salinas", email: "coevaluador@demo.edu", passwordHash, rol: "DOCENTE" },
+  });
+
   const nombresEstudiantes = [
     "Ana Torres",
     "Luis Pérez",
@@ -35,25 +43,44 @@ async function main() {
     estudiantes.push(estudiante);
   }
 
-  const curso = await prisma.curso.upsert({
+  // Catálogo de años-semestre: compartido por toda la plataforma.
+  const periodoAcademico = await prisma.periodoAcademico.upsert({
+    where: { nombre: "2026-1" },
+    update: {},
+    create: { nombre: "2026-1" },
+  });
+
+  // Una asignatura puede tener varias secciones a cargo del mismo docente;
+  // cada sección tiene su propio roster fijo de estudiantes.
+  const asignatura = await prisma.asignatura.upsert({
     where: { codigo: "EDU-101" },
     update: {},
     create: { nombre: "Proyecto Integrador de EdTech", codigo: "EDU-101", docenteId: docente.id },
   });
 
+  const seccion =
+    (await prisma.seccion.findFirst({
+      where: { asignaturaId: asignatura.id, periodoAcademicoId: periodoAcademico.id },
+    })) ??
+    (await prisma.seccion.create({
+      data: { asignaturaId: asignatura.id, periodoAcademicoId: periodoAcademico.id, nombre: "Sección A" },
+    }));
+
   for (const est of estudiantes) {
     await prisma.inscripcion.upsert({
-      where: { cursoId_estudianteId: { cursoId: curso.id, estudianteId: est.id } },
+      where: { seccionId_estudianteId: { seccionId: seccion.id, estudianteId: est.id } },
       update: {},
-      create: { cursoId: curso.id, estudianteId: est.id },
+      create: { seccionId: seccion.id, estudianteId: est.id },
     });
   }
 
+  // Las rúbricas son una biblioteca pública entre docentes: `creadorId` es
+  // solo atribución, cualquier docente puede reutilizarla o modificarla.
   const rubrica =
-    (await prisma.rubrica.findFirst({ where: { cursoId: curso.id }, include: { criterios: true } })) ??
+    (await prisma.rubrica.findFirst({ where: { creadorId: docente.id }, include: { criterios: true } })) ??
     (await prisma.rubrica.create({
       data: {
-        cursoId: curso.id,
+        creadorId: docente.id,
         nombre: "Rúbrica de trabajo colaborativo",
         descripcion: "Evalúa la contribución individual dentro del trabajo en equipo.",
         escalaMin: 1,
@@ -83,10 +110,10 @@ async function main() {
   });
 
   const periodo =
-    (await prisma.periodoEvaluacion.findFirst({ where: { cursoId: curso.id } })) ??
+    (await prisma.periodoEvaluacion.findFirst({ where: { seccionId: seccion.id } })) ??
     (await prisma.periodoEvaluacion.create({
       data: {
-        cursoId: curso.id,
+        seccionId: seccion.id,
         rubricaId: rubricaConCriterios.id,
         nombre: "Corte 1",
         fechaInicio: new Date(),
@@ -98,6 +125,15 @@ async function main() {
         estado: "ABIERTO",
       },
     }));
+
+  // Jorge queda agregado como coevaluador docente de este Corte 1: podrá
+  // registrar sus propias evaluaciones DOCENTE, que se promedian con las de
+  // María (ver calcularResultadoEstudiante en src/lib/grading.ts).
+  await prisma.docenteEvaluador.upsert({
+    where: { periodoId_docenteId: { periodoId: periodo.id, docenteId: docenteCoevaluador.id } },
+    update: {},
+    create: { periodoId: periodo.id, docenteId: docenteCoevaluador.id },
+  });
 
   // Los equipos son propios del periodo (pueden cambiar de una evaluación a
   // otra). Se reutilizan los dos primeros equipos existentes de este
@@ -159,6 +195,9 @@ async function main() {
   await crearEvaluacion("COEVALUACION", luis.id, ana.id, 4);
   await crearEvaluacion("COEVALUACION", camila.id, ana.id, 3);
   await crearEvaluacion("DOCENTE", docente.id, ana.id, 4);
+  // Jorge (coevaluador) también califica a Ana: su nota se promedia con la
+  // de María en un solo notaDocente.
+  await crearEvaluacion("DOCENTE", docenteCoevaluador.id, ana.id, 5);
 
   await crearEvaluacion("AUTOEVALUACION", luis.id, luis.id, 3);
   await crearEvaluacion("COEVALUACION", ana.id, luis.id, 2);
@@ -168,7 +207,8 @@ async function main() {
   await recalcularResultadosPeriodo(periodo.id);
 
   console.log("Seed completado.");
-  console.log("Docente -> docente@demo.edu / Demo1234");
+  console.log("Docente titular -> docente@demo.edu / Demo1234");
+  console.log("Docente coevaluador -> coevaluador@demo.edu / Demo1234");
   console.log("Estudiantes (misma contraseña Demo1234):");
   estudiantes.forEach((e) => console.log(`  - ${e.email}`));
 }

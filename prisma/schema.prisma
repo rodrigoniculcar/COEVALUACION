@@ -43,47 +43,89 @@ model User {
   activo       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  cursosComoDocente Curso[]           @relation("DocenteCursos")
-  inscripciones     Inscripcion[]
-  membresias        MiembroGrupo[]
-  evaluacionesHechas   Evaluacion[]   @relation("Evaluador")
-  evaluacionesRecibidas Evaluacion[]  @relation("Evaluado")
-  resultados        Resultado[]
+  asignaturas   Asignatura[]  @relation("DocenteAsignaturas")
+  inscripciones Inscripcion[]
+  membresias    MiembroGrupo[]
+  evaluacionesHechas    Evaluacion[] @relation("Evaluador")
+  evaluacionesRecibidas Evaluacion[] @relation("Evaluado")
+  resultados    Resultado[]
+  // Rúbricas que este docente creó originalmente. La rúbrica es una
+  // biblioteca pública: cualquier docente puede verla, asignarla a sus
+  // propias evaluaciones y editarla; `creador` es solo atribución.
+  rubricasCreadas Rubrica[] @relation("RubricaCreador")
+  // Periodos de evaluación de OTROS docentes donde este docente fue agregado
+  // como coevaluador (ver DocenteEvaluador).
+  coevaluaciones  DocenteEvaluador[]
 }
 
-// Un curso pertenece a un docente y agrupa estudiantes, grupos, rúbricas y periodos.
-model Curso {
+// Una asignatura pertenece a un docente (quien la dicta/coordina) y agrupa
+// sus secciones. Es reutilizable a través de distintos años-semestre: cada
+// oferta concreta en un periodo académico es una Seccion.
+model Asignatura {
   id        String   @id @default(cuid())
   nombre    String
   codigo    String   @unique
   docenteId String
-  docente   User     @relation("DocenteCursos", fields: [docenteId], references: [id])
+  docente   User     @relation("DocenteAsignaturas", fields: [docenteId], references: [id])
   createdAt DateTime @default(now())
 
-  inscripciones Inscripcion[]
-  rubricas      Rubrica[]
-  periodos      PeriodoEvaluacion[]
+  secciones Seccion[]
 
   @@index([docenteId])
 }
 
-// Carga de alumnos a un curso (matrícula).
+// Catálogo de años-semestre (ej. "2026-1", "2026-2"), compartido por toda la
+// plataforma para evitar duplicados/inconsistencias de nombre entre
+// docentes. Cualquier docente puede crear uno nuevo si no existe.
+model PeriodoAcademico {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  createdAt DateTime @default(now())
+
+  secciones Seccion[]
+}
+
+// Instancia concreta de una Asignatura dictada en un PeriodoAcademico
+// específico, con su propio roster fijo de estudiantes (Inscripcion). Un
+// mismo docente puede tener varias secciones a cargo de una misma
+// asignatura (ej. "Sección A" y "Sección B" del mismo semestre).
+model Seccion {
+  id                 String   @id @default(cuid())
+  asignaturaId       String
+  periodoAcademicoId String
+  nombre             String
+  createdAt          DateTime @default(now())
+
+  asignatura       Asignatura       @relation(fields: [asignaturaId], references: [id], onDelete: Cascade)
+  periodoAcademico PeriodoAcademico @relation(fields: [periodoAcademicoId], references: [id])
+  inscripciones    Inscripcion[]
+  evaluaciones     PeriodoEvaluacion[]
+
+  @@unique([asignaturaId, periodoAcademicoId, nombre])
+  @@index([asignaturaId])
+  @@index([periodoAcademicoId])
+}
+
+// Carga de alumnos a una sección (matrícula). El roster de una sección es
+// fijo: los mismos estudiantes se mantienen a través de todas sus
+// evaluaciones (a diferencia de los Grupo, que sí cambian por evaluación).
 model Inscripcion {
   id           String   @id @default(cuid())
-  cursoId      String
+  seccionId    String
   estudianteId String
   createdAt    DateTime @default(now())
 
-  curso      Curso @relation(fields: [cursoId], references: [id], onDelete: Cascade)
-  estudiante User  @relation(fields: [estudianteId], references: [id])
+  seccion    Seccion @relation(fields: [seccionId], references: [id], onDelete: Cascade)
+  estudiante User    @relation(fields: [estudianteId], references: [id])
 
-  @@unique([cursoId, estudianteId])
+  @@unique([seccionId, estudianteId])
   @@index([estudianteId])
 }
 
-// Equipo de trabajo para UN periodo de evaluación específico (no del curso en
-// general): la conformación de equipos puede cambiar de una evaluación a
-// otra, así que cada PeriodoEvaluacion tiene su propio conjunto de Grupo.
+// Equipo de trabajo para UN periodo de evaluación específico (no de la
+// sección en general): la conformación de equipos puede cambiar de una
+// evaluación a otra, así que cada PeriodoEvaluacion tiene su propio
+// conjunto de Grupo.
 model Grupo {
   id        String   @id @default(cuid())
   periodoId String
@@ -109,17 +151,19 @@ model MiembroGrupo {
   @@unique([grupoId, estudianteId])
 }
 
-// Rúbrica reutilizable dentro de un curso, con criterios ponderados.
+// Rúbrica reutilizable: es una biblioteca PÚBLICA entre docentes (cualquier
+// docente puede verla, asignarla a sus propias evaluaciones y editarla,
+// sin importar quién la creó). `creadorId` es solo atribución/historial.
 model Rubrica {
   id          String   @id @default(cuid())
-  cursoId     String
+  creadorId   String
   nombre      String
   descripcion String?
   escalaMin   Int      @default(1)
   escalaMax   Int      @default(5)
   createdAt   DateTime @default(now())
 
-  curso    Curso              @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  creador   User                @relation("RubricaCreador", fields: [creadorId], references: [id])
   criterios CriterioRubrica[]
   periodos  PeriodoEvaluacion[]
 }
@@ -148,12 +192,13 @@ model CriterioRubrica {
   @@index([rubricaId])
 }
 
-// Periodo de evaluación: define la ventana de tiempo, la rúbrica a usar y
-// los pesos relativos de autoevaluación / coevaluación / evaluación docente
-// que se combinan para la nota final (deben sumar 100).
+// Periodo (evaluación) dentro de una Sección: define la ventana de tiempo,
+// la rúbrica a usar y los pesos relativos de autoevaluación / coevaluación
+// / evaluación docente que se combinan para la nota final (deben sumar
+// 100).
 model PeriodoEvaluacion {
   id          String        @id @default(cuid())
-  cursoId     String
+  seccionId   String
   rubricaId   String
   nombre      String
   fechaInicio DateTime
@@ -167,18 +212,40 @@ model PeriodoEvaluacion {
   estado      EstadoPeriodo @default(BORRADOR)
   createdAt   DateTime      @default(now())
 
-  curso       Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  seccion     Seccion      @relation(fields: [seccionId], references: [id], onDelete: Cascade)
   rubrica     Rubrica      @relation(fields: [rubricaId], references: [id])
   grupos       Grupo[]
   evaluaciones Evaluacion[]
   resultados   Resultado[]
+  // Docentes adicionales (además del titular, dueño de la Asignatura)
+  // autorizados a registrar evaluaciones de tipo DOCENTE en este periodo.
+  // Sus notas se promedian junto con la del titular en un solo notaDocente.
+  docentesEvaluadores DocenteEvaluador[]
 
-  @@index([cursoId])
+  @@index([seccionId])
+}
+
+// Docente adicional agregado como coevaluador de un periodo de evaluación
+// específico: puede registrar evaluaciones de tipo DOCENTE para los
+// estudiantes de ese periodo, junto con el docente titular (dueño de la
+// Asignatura/Sección). No tiene permiso para editar la configuración del
+// periodo ni gestionar equipos, solo para calificar.
+model DocenteEvaluador {
+  id        String   @id @default(cuid())
+  periodoId String
+  docenteId String
+  createdAt DateTime @default(now())
+
+  periodo PeriodoEvaluacion @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  docente User              @relation(fields: [docenteId], references: [id])
+
+  @@unique([periodoId, docenteId])
 }
 
 // Una Evaluacion es un "formulario" de rúbrica completado por un evaluador
 // sobre un evaluado (puede ser el mismo, un compañero, o un estudiante
-// evaluado por el docente), dentro de un periodo y en el contexto de un grupo.
+// evaluado por un docente —titular o coevaluador—), dentro de un periodo y
+// en el contexto de un grupo.
 model Evaluacion {
   id          String         @id @default(cuid())
   periodoId   String
@@ -196,7 +263,9 @@ model Evaluacion {
   detalles  DetalleEvaluacion[]
 
   // Un evaluador solo puede enviar una evaluación de cada tipo sobre un
-  // mismo evaluado dentro de un periodo (evita doble envío).
+  // mismo evaluado dentro de un periodo (evita doble envío). Esto también
+  // permite que varios docentes (titular + coevaluadores) registren cada
+  // uno su propia evaluación DOCENTE sobre el mismo estudiante.
   @@unique([periodoId, tipo, evaluadorId, evaluadoId])
   @@index([periodoId, evaluadoId])
 }

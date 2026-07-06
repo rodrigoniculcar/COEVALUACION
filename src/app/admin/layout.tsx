@@ -4,7 +4,7 @@ const links = [
   { href: "/admin", label: "Resumen" },
   { href: "/admin/docentes", label: "Docentes" },
   { href: "/admin/estudiantes", label: "Estudiantes" },
-  { href: "/admin/cursos", label: "Cursos" },
+  { href: "/admin/asignaturas", label: "Asignaturas" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

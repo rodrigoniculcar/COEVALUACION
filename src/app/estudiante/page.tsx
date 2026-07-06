@@ -11,11 +11,12 @@ interface Periodo {
 }
 
 interface Inscripcion {
-  curso: {
+  seccion: {
     id: string;
     nombre: string;
-    codigo: string;
-    periodos: Periodo[];
+    asignatura: { nombre: string; codigo: string };
+    periodoAcademico: { nombre: string };
+    evaluaciones: Periodo[];
   };
 }
 
@@ -30,7 +31,7 @@ export default function EstudianteDashboard() {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    fetch("/api/estudiante/cursos")
+    fetch("/api/estudiante/secciones")
       .then((r) => r.json())
       .then((d) => {
         setInscripciones(d.inscripciones ?? []);
@@ -43,22 +44,26 @@ export default function EstudianteDashboard() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold">Mis cursos</h1>
-        <p className="mt-1 text-slate-600">Autoevalúate y coevalúa a tus compañeros de equipo en cada periodo abierto.</p>
+        <h1 className="text-2xl font-bold">Mis secciones</h1>
+        <p className="mt-1 text-slate-600">Autoevalúate y coevalúa a tus compañeros de equipo en cada evaluación abierta.</p>
       </div>
 
-      {inscripciones.length === 0 && <p className="text-slate-500">Aún no estás matriculado en ningún curso.</p>}
+      {inscripciones.length === 0 && <p className="text-slate-500">Aún no estás matriculado en ninguna sección.</p>}
 
       <div className="flex flex-col gap-6">
-        {inscripciones.map(({ curso }) => (
-          <div key={curso.id} className="card">
-            <h2 className="font-semibold">{curso.nombre}</h2>
-            <p className="text-sm text-slate-500">Código: {curso.codigo}</p>
-            {curso.periodos.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Sin periodos de evaluación todavía.</p>
+        {inscripciones.map(({ seccion }) => (
+          <div key={seccion.id} className="card">
+            <h2 className="font-semibold">
+              {seccion.asignatura.nombre} — {seccion.nombre}
+            </h2>
+            <p className="text-sm text-slate-500">
+              Código: {seccion.asignatura.codigo} · {seccion.periodoAcademico.nombre}
+            </p>
+            {seccion.evaluaciones.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">Sin evaluaciones todavía.</p>
             ) : (
               <ul className="mt-3 flex flex-col gap-2">
-                {curso.periodos.map((p) => (
+                {seccion.evaluaciones.map((p) => (
                   <li key={p.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
                     <div>
                       <p className="font-medium">{p.nombre}</p>

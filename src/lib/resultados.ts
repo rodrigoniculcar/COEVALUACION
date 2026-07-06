@@ -47,12 +47,15 @@ export async function recalcularResultadosPeriodo(periodoId: string) {
       const autoevaluacion =
         evaluacionesDelEstudiante.find((e) => e.tipo === "AUTOEVALUACION") ?? null;
       const coevaluaciones = evaluacionesDelEstudiante.filter((e) => e.tipo === "COEVALUACION");
-      const docente = evaluacionesDelEstudiante.find((e) => e.tipo === "DOCENTE") ?? null;
+      // Puede haber más de un docente evaluador (titular + coevaluadores
+      // agregados al periodo); todas sus evaluaciones se promedian igual
+      // que la coevaluación entre compañeros (ver calcularResultadoEstudiante).
+      const docentes = evaluacionesDelEstudiante.filter((e) => e.tipo === "DOCENTE");
 
       const calculo = calcularResultadoEstudiante({
         autoevaluacion: autoevaluacion ? toInput(autoevaluacion) : null,
         coevaluaciones: coevaluaciones.map(toInput),
-        docente: docente ? toInput(docente) : null,
+        docentes: docentes.map(toInput),
         criterios,
         escalaMin: periodo.rubrica.escalaMin,
         escalaMax: periodo.rubrica.escalaMax,

@@ -6,7 +6,7 @@ import Link from "next/link";
 interface Resumen {
   docentes: number;
   estudiantes: number;
-  cursos: number;
+  asignaturas: number;
   periodosAbiertos: number;
 }
 
@@ -22,8 +22,8 @@ export default function AdminDashboard() {
   const tarjetas = [
     { label: "Docentes", valor: resumen?.docentes, href: "/admin/docentes" },
     { label: "Estudiantes", valor: resumen?.estudiantes, href: "/admin/estudiantes" },
-    { label: "Cursos", valor: resumen?.cursos, href: "/admin/cursos" },
-    { label: "Periodos abiertos", valor: resumen?.periodosAbiertos, href: "/admin/cursos" },
+    { label: "Asignaturas", valor: resumen?.asignaturas, href: "/admin/asignaturas" },
+    { label: "Periodos abiertos", valor: resumen?.periodosAbiertos, href: "/admin/asignaturas" },
   ];
 
   return (
@@ -31,7 +31,7 @@ export default function AdminDashboard() {
       <div>
         <h1 className="text-2xl font-bold">Panel de administración</h1>
         <p className="mt-1 text-slate-600">
-          Crea cuentas de docentes y estudiantes, y supervisa todos los cursos de la plataforma.
+          Crea cuentas de docentes y estudiantes, y supervisa todas las asignaturas de la plataforma.
         </p>
       </div>
 

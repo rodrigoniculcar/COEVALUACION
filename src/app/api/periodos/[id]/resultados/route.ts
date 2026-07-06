@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireDocente, ErrorAcceso } from "@/lib/session";
+import { requireDocente } from "@/lib/session";
+import { requirePeriodoDelDocente } from "@/lib/academico";
 import { recalcularResultadosPeriodo } from "@/lib/resultados";
 import { manejarError } from "@/lib/api-helpers";
 import type { CriterioResultado } from "@/lib/grading";
@@ -24,12 +25,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   try {
     const docente = await requireDocente();
 
-    const periodo = await prisma.periodoEvaluacion.findUnique({
+    await requirePeriodoDelDocente(params.id, docente.id);
+    const periodo = await prisma.periodoEvaluacion.findUniqueOrThrow({
       where: { id: params.id },
-      include: { curso: true },
+      include: { seccion: { include: { asignatura: true, periodoAcademico: true } } },
     });
-    if (!periodo) throw new ErrorAcceso("Periodo no encontrado", 404);
-    if (periodo.curso.docenteId !== docente.id) throw new ErrorAcceso("No tienes acceso a este periodo", 403);
 
     await recalcularResultadosPeriodo(periodo.id);
 

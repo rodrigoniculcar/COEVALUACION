@@ -1,8 +1,11 @@
 # Coevaluación
 
-Plataforma de **Autoevaluación y Coevaluación grupal** para cursos: rúbricas ponderadas, autoevaluación,
-coevaluación entre pares y evaluación docente combinadas en una nota final, con un panel de resultados por
-curso/equipo/individuo, detección de indicadores críticos y retroalimentación automática.
+Plataforma de **Autoevaluación y Coevaluación grupal**: un docente puede tener varias asignaturas, cada una
+con varias secciones (una por año-semestre); cada sección tiene sus propias evaluaciones, con rúbricas
+ponderadas (reutilizables entre docentes) y equipos propios de cada evaluación. Combina autoevaluación,
+coevaluación entre pares y evaluación docente (incluyendo coevaluadores docentes) en una nota final, con un
+panel de resultados por sección/equipo/individuo, detección de indicadores críticos y retroalimentación
+automática.
 
 El diseño completo (modelo de datos, algoritmo de cálculo, user journey y seguridad) está en
 [`ARCHITECTURE.md`](./ARCHITECTURE.md).
@@ -27,7 +30,7 @@ docker compose up -d
 
 npm install
 npm run db:migrate     # aplica las migraciones (modo interactivo, crea una nueva si cambiaste el schema)
-npm run db:seed        # datos de demo: docente + 6 estudiantes + 2 equipos + 1 periodo abierto
+npm run db:seed        # datos de demo: 2 docentes (titular + coevaluador) + 6 estudiantes + 1 evaluación abierta
 npm run dev
 ```
 
@@ -46,7 +49,7 @@ las dos, **cambia la contraseña de inmediato** desde `PATCH /api/perfil/passwor
 el código fuente del repositorio, así que no debe usarse de forma permanente).
 
 Desde `/admin`, el Administrador puede crear más cuentas de docentes y estudiantes, activar/desactivar
-cualquier cuenta, y ver/matricular estudiantes en cualquier curso de la plataforma.
+cualquier cuenta, y ver/matricular estudiantes en cualquier sección de la plataforma.
 
 ## Scripts
 
@@ -61,7 +64,7 @@ cualquier cuenta, y ver/matricular estudiantes en cualquier curso de la platafor
 
 ## Despliegue en Vercel + Supabase
 
-La app **no almacena archivos**: todos los datos (usuarios, cursos, rúbricas, evaluaciones, notas) viven en
+La app **no almacena archivos**: todos los datos (usuarios, asignaturas, secciones, rúbricas, evaluaciones, notas) viven en
 PostgreSQL, así que con Supabase como base de datos es suficiente. No necesitas Supabase Storage.
 
 ### Paso 1 — Crear la base de datos en Supabase

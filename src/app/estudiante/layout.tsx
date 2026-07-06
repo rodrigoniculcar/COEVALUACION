@@ -1,7 +1,7 @@
 import { NavBar } from "@/components/NavBar";
 
 const links = [
-  { href: "/estudiante", label: "Mis cursos" },
+  { href: "/estudiante", label: "Mis secciones" },
   { href: "/estudiante/resultados", label: "Mis resultados" },
 ];
 

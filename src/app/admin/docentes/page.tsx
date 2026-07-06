@@ -7,7 +7,7 @@ interface Docente {
   nombre: string;
   email: string;
   activo: boolean;
-  _count: { cursosComoDocente: number };
+  _count: { asignaturas: number };
 }
 
 export default function AdminDocentesPage() {
@@ -107,7 +107,7 @@ export default function AdminDocentesPage() {
             <tr className="text-left text-slate-500">
               <th className="py-1">Nombre</th>
               <th>Correo</th>
-              <th>Cursos</th>
+              <th>Asignaturas</th>
               <th>Estado</th>
               <th></th>
             </tr>
@@ -117,7 +117,7 @@ export default function AdminDocentesPage() {
               <tr key={d.id} className="border-t border-slate-100">
                 <td className="py-2">{d.nombre}</td>
                 <td className="text-slate-500">{d.email}</td>
-                <td>{d._count.cursosComoDocente}</td>
+                <td>{d._count.asignaturas}</td>
                 <td>
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${

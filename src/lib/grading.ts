@@ -8,7 +8,9 @@
 // 1. Cada Evaluacion (autoevaluación, coevaluación o docente) se reduce a
 //    una nota 0-100 ponderando sus criterios según CriterioRubrica.ponderacion.
 // 2. La coevaluación de un estudiante es el promedio de las notas que le
-//    asignó cada compañero de equipo.
+//    asignó cada compañero de equipo. La nota docente funciona igual: si un
+//    periodo tiene coevaluadores docentes además del titular, se promedian
+//    todas las evaluaciones de tipo DOCENTE en un solo notaDocente.
 // 3. La nota final combina auto/co/docente usando los pesos del periodo
 //    (PeriodoEvaluacion.pesoAutoevaluacion/pesoCoevaluacion/pesoDocente).
 //    Si falta algún componente, sus puntos se redistribuyen
@@ -144,14 +146,17 @@ const BRECHA_NOTABLE = 15; // diferencia (en puntos) para considerar que dos fue
 export function calcularResultadoEstudiante(params: {
   autoevaluacion: EvaluacionInput | null;
   coevaluaciones: EvaluacionInput[]; // una por cada compañero que evaluó a este estudiante
-  docente: EvaluacionInput | null;
+  // Una por cada docente evaluador (el titular de la asignatura y, si los
+  // hay, los coevaluadores agregados a este periodo). Se promedian igual
+  // que la coevaluación entre compañeros.
+  docentes: EvaluacionInput[];
   criterios: CriterioInfo[];
   escalaMin: number;
   escalaMax: number;
   escalaExigencia: number;
   pesos: PesosPeriodo;
 }): ResultadoCalculado {
-  const { autoevaluacion, coevaluaciones, docente, criterios, escalaMin, escalaMax, escalaExigencia, pesos } = params;
+  const { autoevaluacion, coevaluaciones, docentes, criterios, escalaMin, escalaMax, escalaExigencia, pesos } = params;
 
   // Cada tipo de evaluación solo pondera los criterios que le aplican; así
   // el peso se renormaliza a 100% entre los criterios realmente evaluados
@@ -172,9 +177,13 @@ export function calcularResultadoEstudiante(params: {
       ? notasCoevaluacionIndividuales.reduce((a, b) => a + b, 0) / notasCoevaluacionIndividuales.length
       : null;
 
-  const notaDocente = docente
-    ? calcularNotaEvaluacion(docente.detalles, criteriosDoc, escalaMin, escalaMax)
-    : null;
+  const notasDocenteIndividuales = docentes.map((d) =>
+    calcularNotaEvaluacion(d.detalles, criteriosDoc, escalaMin, escalaMax)
+  );
+  const notaDocente =
+    notasDocenteIndividuales.length > 0
+      ? notasDocenteIndividuales.reduce((a, b) => a + b, 0) / notasDocenteIndividuales.length
+      : null;
 
   const notaFinal =
     combinarPonderado([
@@ -195,9 +204,10 @@ export function calcularResultadoEstudiante(params: {
       .map((c) => notaCriterioEnEvaluacion(c.detalles, criterio.id, escalaMin, escalaMax))
       .filter((v): v is number => v !== null);
     const coC = coValores.length > 0 ? coValores.reduce((a, b) => a + b, 0) / coValores.length : null;
-    const docC = docente
-      ? notaCriterioEnEvaluacion(docente.detalles, criterio.id, escalaMin, escalaMax)
-      : null;
+    const docValores = docentes
+      .map((d) => notaCriterioEnEvaluacion(d.detalles, criterio.id, escalaMin, escalaMax))
+      .filter((v): v is number => v !== null);
+    const docC = docValores.length > 0 ? docValores.reduce((a, b) => a + b, 0) / docValores.length : null;
 
     const promedio =
       combinarPonderado([

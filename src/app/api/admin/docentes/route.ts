@@ -23,7 +23,7 @@ export async function GET() {
         email: true,
         activo: true,
         createdAt: true,
-        _count: { select: { cursosComoDocente: true } },
+        _count: { select: { asignaturas: true } },
       },
       orderBy: { createdAt: "desc" },
     });

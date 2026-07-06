@@ -26,7 +26,8 @@ interface CriterioResultado {
 interface Resultado {
   periodoId: string;
   periodoNombre: string;
-  cursoNombre: string;
+  asignaturaNombre: string;
+  seccionNombre: string;
   grupoNombre: string;
   integrantesHistoricos: string[];
   notaAutoevaluacion: number | null;
@@ -78,7 +79,7 @@ export default function ResultadosEstudiantePage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="font-semibold">
-                    {r.cursoNombre} — {r.periodoNombre}
+                    {r.asignaturaNombre} ({r.seccionNombre}) — {r.periodoNombre}
                   </h2>
                   <p className="text-sm text-slate-500">
                     Equipo: {r.grupoNombre}

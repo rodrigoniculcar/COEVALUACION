@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUsuario, ErrorAcceso } from "@/lib/session";
+import { requireAccesoEvaluacionDocente } from "@/lib/academico";
 import { recalcularResultadosPeriodo } from "@/lib/resultados";
 import { manejarError } from "@/lib/api-helpers";
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const periodo = await prisma.periodoEvaluacion.findUnique({
       where: { id: params.id },
-      include: { curso: true, rubrica: { include: { criterios: true } } },
+      include: { rubrica: { include: { criterios: true } } },
     });
     if (!periodo) throw new ErrorAcceso("Periodo no encontrado", 404);
     if (periodo.estado !== "ABIERTO") {
@@ -84,9 +85,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (!idsGrupo.includes(body.evaluadoId)) throw new ErrorAcceso("Solo puedes coevaluar a compañeros de tu grupo", 400);
       }
     } else {
-      // DOCENTE
+      // DOCENTE: puede ser el titular (dueño de la asignatura) o un
+      // coevaluador agregado explícitamente a este periodo (ver
+      // DocenteEvaluador). Cada docente evaluador registra su propia
+      // Evaluacion; todas se promedian en un solo notaDocente.
       if (body.tipo !== "DOCENTE") throw new ErrorAcceso("El docente solo registra evaluaciones de tipo DOCENTE", 400);
-      if (periodo.curso.docenteId !== usuario.id) throw new ErrorAcceso("No tienes acceso a este periodo", 403);
+      await requireAccesoEvaluacionDocente(periodo.id, usuario.id);
       if (!idsGrupo.includes(body.evaluadoId)) throw new ErrorAcceso("El estudiante no pertenece a ese grupo", 400);
     }
 

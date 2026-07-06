@@ -1,7 +1,8 @@
 import { NavBar } from "@/components/NavBar";
 
 const links = [
-  { href: "/docente", label: "Mis cursos" },
+  { href: "/docente", label: "Mis asignaturas" },
+  { href: "/docente/rubricas", label: "Rúbricas" },
 ];
 
 export default function DocenteLayout({ children }: { children: React.ReactNode }) {

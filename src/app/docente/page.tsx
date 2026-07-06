@@ -3,59 +3,62 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 
-interface Curso {
+interface Asignatura {
   id: string;
   nombre: string;
   codigo: string;
-  _count: { inscripciones: number; periodos: number };
+  _count: { secciones: number };
 }
 
 export default function DocenteDashboard() {
-  const [cursos, setCursos] = useState<Curso[]>([]);
+  const [asignaturas, setAsignaturas] = useState<Asignatura[]>([]);
   const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  async function cargarCursos() {
-    const res = await fetch("/api/cursos");
+  async function cargarAsignaturas() {
+    const res = await fetch("/api/asignaturas");
     const data = await res.json();
-    setCursos(data.cursos ?? []);
+    setAsignaturas(data.asignaturas ?? []);
     setCargando(false);
   }
 
   useEffect(() => {
-    cargarCursos();
+    cargarAsignaturas();
   }, []);
 
-  async function crearCurso(e: FormEvent) {
+  async function crearAsignatura(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = await fetch("/api/cursos", {
+    const res = await fetch("/api/asignaturas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nombre, codigo }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "No se pudo crear el curso.");
+      setError(data.error ?? "No se pudo crear la asignatura.");
       return;
     }
     setNombre("");
     setCodigo("");
-    cargarCursos();
+    cargarAsignaturas();
   }
 
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold">Mis cursos</h1>
-        <p className="mt-1 text-slate-600">Crea un curso para cargar estudiantes, equipos, rúbricas y periodos.</p>
+        <h1 className="text-2xl font-bold">Mis asignaturas</h1>
+        <p className="mt-1 text-slate-600">
+          Puedes tener varias asignaturas a cargo. Cada asignatura agrupa sus secciones (una por cada
+          año-semestre en que se dicta).
+        </p>
       </div>
 
-      <form onSubmit={crearCurso} className="card flex flex-wrap items-end gap-4">
+      <form onSubmit={crearAsignatura} className="card flex flex-wrap items-end gap-4">
         <div className="flex-1 min-w-[200px]">
-          <label className="label">Nombre del curso</label>
+          <label className="label">Nombre de la asignatura</label>
           <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
         </div>
         <div className="w-40">
@@ -63,24 +66,23 @@ export default function DocenteDashboard() {
           <input className="input" value={codigo} onChange={(e) => setCodigo(e.target.value)} required />
         </div>
         <button className="btn-primary" type="submit">
-          Crear curso
+          Crear asignatura
         </button>
         {error && <p className="w-full text-sm text-red-600">{error}</p>}
       </form>
 
       {cargando ? (
         <p className="text-slate-500">Cargando...</p>
-      ) : cursos.length === 0 ? (
-        <p className="text-slate-500">Aún no tienes cursos creados.</p>
+      ) : asignaturas.length === 0 ? (
+        <p className="text-slate-500">Aún no tienes asignaturas creadas.</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {cursos.map((c) => (
-            <Link key={c.id} href={`/docente/cursos/${c.id}`} className="card hover:border-brand-500">
-              <h2 className="font-semibold">{c.nombre}</h2>
-              <p className="text-sm text-slate-500">Código: {c.codigo}</p>
+          {asignaturas.map((a) => (
+            <Link key={a.id} href={`/docente/asignaturas/${a.id}`} className="card hover:border-brand-500">
+              <h2 className="font-semibold">{a.nombre}</h2>
+              <p className="text-sm text-slate-500">Código: {a.codigo}</p>
               <div className="mt-3 flex gap-4 text-xs text-slate-500">
-                <span>{c._count.inscripciones} estudiantes</span>
-                <span>{c._count.periodos} periodos</span>
+                <span>{a._count.secciones} secciones</span>
               </div>
             </Link>
           ))}
