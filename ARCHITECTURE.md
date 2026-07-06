@@ -282,13 +282,28 @@ PDF).
   ver `.env.example`) y se configuran como Environment Variables en Vercel para producción.
 - **No se pueden "ver" contraseñas existentes**: solo se guarda el hash, nunca el valor original, así que ni
   el docente ni el administrador pueden recuperar la contraseña de un estudiante. En su lugar, el docente
-  puede **restablecerla** (`POST /api/secciones/[id]/estudiantes/[estudianteId]/restablecer-password`), que
-  genera una contraseña nueva y la muestra una única vez para volver a compartirla.
+  puede **restablecerla** (`POST /api/secciones/[id]/estudiantes/[estudianteId]/restablecer-password`) y el
+  administrador puede restablecer la de cualquier estudiante o docente
+  (`POST /api/admin/usuarios/[id]/restablecer-password`); ambos endpoints generan una contraseña nueva y la
+  devuelven una única vez para volver a compartirla.
 - **Importación de Excel/CSV**: el archivo se procesa por completo en el navegador (librería `xlsx`), nunca
-  se sube el binario al servidor — solo se extraen nombre/correo y se reutiliza el mismo endpoint de carga
-  manual. Esto acota el riesgo de las vulnerabilidades conocidas de `xlsx` (CVE de prototype pollution/ReDoS,
-  sin parche en la versión publicada en npm) al navegador de quien importa su propio archivo, sin exponer al
-  servidor.
+  se sube el binario al servidor — solo se extraen RUT/nombre/correo y se reutiliza el mismo endpoint de
+  carga manual (tanto en el panel del administrador como en la sección del docente). Esto acota el riesgo de
+  las vulnerabilidades conocidas de `xlsx` (CVE de prototype pollution/ReDoS, sin parche en la versión
+  publicada en npm) al navegador de quien importa su propio archivo, sin exponer al servidor. Si el correo
+  de una fila ya existe en el sistema, la carga NUNCA sobreescribe sus datos (nombre/RUT/contraseña): solo
+  matricula a ese estudiante existente en la sección/asignatura correspondiente.
+- **Carga masiva con RUT y contraseña genérica**: tanto `/api/admin/estudiantes` como `/api/admin/docentes`
+  aceptan un arreglo de filas (manual o desde Excel) con `rut` opcional, y una `passwordGenerica` opcional
+  que, si se define, se asigna a todas las cuentas nuevas de esa carga (si no, cada una recibe una
+  contraseña aleatoria distinta). El campo `User.rut` es único pero nullable, ya que no todas las cuentas
+  (como las creadas por `bootstrap-admin`) lo tienen.
+- **Buscar estudiante existente antes de crear uno nuevo**: desde la sección, el docente primero ve el
+  roster ya matriculado; si el estudiante que busca no está, `GET /api/estudiantes?q=` permite buscarlo por
+  nombre, apellido, correo o RUT entre **todos** los estudiantes de la plataforma (estén o no en otra
+  sección) y agregarlo con un clic sin volver a escribir sus datos. Solo si de verdad no existe en el
+  sistema, el docente lo crea (vía el mismo formulario de carga manual/Excel) — esa cuenta queda disponible
+  globalmente para cualquier otro docente, igual que si la hubiera creado el administrador.
 
 ## 7. Cómo correr el proyecto
 

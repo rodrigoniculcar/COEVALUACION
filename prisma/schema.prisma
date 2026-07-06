@@ -34,6 +34,10 @@ enum TipoEvaluacion {
 
 model User {
   id           String   @id @default(cuid())
+  // RUT chileno (opcional): útil como identificador adicional al cargar
+  // estudiantes/docentes en bloque, pero no todas las cuentas lo tienen
+  // (ej. las creadas por bootstrap-admin), por eso es nullable.
+  rut          String?  @unique
   nombre       String
   email        String   @unique
   passwordHash String

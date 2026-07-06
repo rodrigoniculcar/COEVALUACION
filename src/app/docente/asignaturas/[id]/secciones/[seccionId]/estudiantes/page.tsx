@@ -16,6 +16,13 @@ interface ResultadoCarga {
   motivo?: string;
 }
 
+interface EstudianteExistente {
+  id: string;
+  rut: string | null;
+  nombre: string;
+  email: string;
+}
+
 export default function EstudiantesSeccionPage() {
   const { id, seccionId } = useParams<{ id: string; seccionId: string }>();
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
@@ -30,6 +37,12 @@ export default function EstudiantesSeccionPage() {
   );
   const inputArchivoRef = useRef<HTMLInputElement>(null);
 
+  const [busqueda, setBusqueda] = useState("");
+  const [resultadosBusqueda, setResultadosBusqueda] = useState<EstudianteExistente[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [agregandoId, setAgregandoId] = useState<string | null>(null);
+  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
+
   async function cargarInscripciones() {
     const res = await fetch(`/api/secciones/${seccionId}/estudiantes`);
     const data = await res.json();
@@ -40,6 +53,18 @@ export default function EstudiantesSeccionPage() {
     cargarInscripciones();
   }, [seccionId]);
 
+  // Cada línea: "RUT, Nombre completo, correo@ejemplo.com" (el RUT es
+  // opcional: "Nombre completo, correo@ejemplo.com" también es válido).
+  function parsearLinea(linea: string) {
+    const partes = linea.split(",").map((v) => v.trim());
+    if (partes.length >= 3) {
+      const [rut, nombre, email] = partes;
+      return { rut: rut || undefined, nombre, email };
+    }
+    const [nombre, email] = partes;
+    return { rut: undefined, nombre, email };
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -49,13 +74,10 @@ export default function EstudiantesSeccionPage() {
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean)
-      .map((linea) => {
-        const [nombre, email] = linea.split(",").map((v) => v.trim());
-        return { nombre, email };
-      });
+      .map(parsearLinea);
 
     if (filas.some((f) => !f.nombre || !f.email)) {
-      setError('Cada línea debe tener el formato "Nombre completo, correo@ejemplo.com"');
+      setError('Cada línea debe tener el formato "Nombre completo, correo@ejemplo.com" (RUT opcional al inicio)');
       return;
     }
 
@@ -94,15 +116,20 @@ export default function EstudiantesSeccionPage() {
       const hoja = libro.Sheets[libro.SheetNames[0]];
       const filas: unknown[][] = XLSX.utils.sheet_to_json(hoja, { header: 1 });
 
+      // Plantilla: RUT, Nombre completo, Correo electrónico
       const lineas = filas
         .slice(1) // saltar encabezado
-        .map((fila) => [String(fila[0] ?? "").trim(), String(fila[1] ?? "").trim()])
-        .filter(([nombre, email]) => nombre && email)
-        .map(([nombre, email]) => `${nombre}, ${email}`);
+        .map((fila) => [
+          String(fila[0] ?? "").trim(),
+          String(fila[1] ?? "").trim(),
+          String(fila[2] ?? "").trim(),
+        ])
+        .filter(([, nombre, email]) => nombre && email)
+        .map(([rut, nombre, email]) => (rut ? `${rut}, ${nombre}, ${email}` : `${nombre}, ${email}`));
 
       if (lineas.length === 0) {
         setErrorArchivo(
-          "No se encontraron filas válidas. Usa la plantilla: primera columna = nombre, segunda = correo."
+          "No se encontraron filas válidas. Usa la plantilla: RUT (opcional), nombre, correo."
         );
         return;
       }
@@ -132,19 +159,109 @@ export default function EstudiantesSeccionPage() {
     setPasswordRestablecida({ email: data.email, password: data.passwordTemporal });
   }
 
+  async function buscarEstudiantes(q: string) {
+    setBusqueda(q);
+    setErrorBusqueda(null);
+    if (q.trim().length < 2) {
+      setResultadosBusqueda([]);
+      return;
+    }
+    setBuscando(true);
+    const res = await fetch(`/api/estudiantes?q=${encodeURIComponent(q.trim())}`);
+    const data = await res.json();
+    setBuscando(false);
+    setResultadosBusqueda(data.estudiantes ?? []);
+  }
+
+  // Agrega a un estudiante que YA existe en el sistema (encontrado por
+  // nombre, apellido, correo o RUT) a esta sección. Reutiliza el mismo
+  // endpoint de carga: como el correo ya existe, solo lo matricula — no
+  // toca sus datos existentes (nombre/rut/contraseña).
+  async function agregarExistente(est: EstudianteExistente) {
+    setAgregandoId(est.id);
+    setErrorBusqueda(null);
+    const res = await fetch(`/api/secciones/${seccionId}/estudiantes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estudiantes: [{ nombre: est.nombre, email: est.email }] }),
+    });
+    const data = await res.json();
+    setAgregandoId(null);
+    if (!res.ok) {
+      setErrorBusqueda(data.error ?? "No se pudo agregar al estudiante.");
+      return;
+    }
+    cargarInscripciones();
+  }
+
+  const idsYaInscritos = new Set(inscripciones.map((i) => i.estudiante.id));
+
   return (
     <div className="flex flex-col gap-8">
       <div>
         <VolverLink href={`/docente/asignaturas/${id}/secciones/${seccionId}`} texto="Volver a la sección" />
         <h1 className="mt-2 text-2xl font-bold">Carga de estudiantes</h1>
         <p className="mt-1 text-slate-600">
-          El roster de esta sección es fijo para todas sus evaluaciones. Ingresa un estudiante por línea con
-          el formato <code>Nombre completo, correo@ejemplo.com</code>, o importa un archivo Excel/CSV. Si el
-          correo no existe se crea una cuenta con contraseña temporal.
+          El roster de esta sección es fijo para todas sus evaluaciones. Primero busca si el estudiante ya
+          existe en el sistema; si no lo encuentras, cárgalo abajo (se crea automáticamente si el correo no
+          existe).
         </p>
       </div>
 
+      <div className="card flex flex-col gap-3">
+        <h2 className="font-semibold">Buscar estudiante existente</h2>
+        <p className="text-sm text-slate-600">
+          Busca por nombre, apellido, correo o RUT entre todos los estudiantes ya registrados en la
+          plataforma (estén o no en otra sección) y agrégalo a esta con un clic.
+        </p>
+        <input
+          className="input max-w-md"
+          placeholder="Ej. Torres, ana@correo.com, 12345678-9..."
+          value={busqueda}
+          onChange={(e) => buscarEstudiantes(e.target.value)}
+        />
+        {errorBusqueda && <p className="text-sm text-red-600">{errorBusqueda}</p>}
+        {buscando && <p className="text-sm text-slate-500">Buscando...</p>}
+        {!buscando && busqueda.trim().length >= 2 && (
+          <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+            {resultadosBusqueda.length === 0 && (
+              <li className="text-sm text-slate-500">
+                Nadie coincide con &quot;{busqueda}&quot;. Si es un estudiante nuevo, cárgalo abajo.
+              </li>
+            )}
+            {resultadosBusqueda.map((est) => {
+              const yaInscrito = idsYaInscritos.has(est.id);
+              return (
+                <li key={est.id} className="flex items-center justify-between text-sm">
+                  <span>
+                    {est.nombre} <span className="text-slate-400">({est.email}{est.rut ? ` · ${est.rut}` : ""})</span>
+                  </span>
+                  {yaInscrito ? (
+                    <span className="text-xs text-slate-400">Ya está en esta sección</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-xs text-brand-600 hover:underline disabled:opacity-50"
+                      onClick={() => agregarExistente(est)}
+                      disabled={agregandoId === est.id}
+                    >
+                      {agregandoId === est.id ? "Agregando..." : "Agregar a esta sección"}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       <form onSubmit={onSubmit} className="card flex flex-col gap-4">
+        <h2 className="font-semibold">Cargar estudiantes (crea si no existen)</h2>
+        <p className="text-sm text-slate-600">
+          Ingresa un estudiante por línea con el formato <code>Nombre completo, correo@ejemplo.com</code>{" "}
+          (RUT opcional al inicio), o importa un archivo Excel/CSV. Si el correo ya existe, solo se matricula
+          — no se modifican sus datos.
+        </p>
         <div className="flex flex-wrap items-center gap-3">
           <a href="/plantilla-estudiantes.xlsx" download className="btn-secondary">
             Descargar plantilla Excel

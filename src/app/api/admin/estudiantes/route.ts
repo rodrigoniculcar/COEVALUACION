@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdministrador, ErrorAcceso } from "@/lib/session";
+import { requireAdministrador } from "@/lib/session";
 import { manejarError } from "@/lib/api-helpers";
 import { generarPasswordTemporal, hashPassword } from "@/lib/passwords";
 
-const crearEstudianteSchema = z.object({
+const estudianteSchema = z.object({
+  rut: z.string().trim().min(3).max(20).optional(),
   nombre: z.string().min(2).max(120),
   email: z.string().email(),
-  password: z.string().min(8).optional(),
+});
+
+const cargaSchema = z.object({
+  estudiantes: z.array(estudianteSchema).min(1).max(500),
+  // Si se define, se usa la MISMA contraseña para todos los estudiantes de
+  // esta carga (más fácil de comunicar en un solo aviso); si no, cada uno
+  // recibe una contraseña aleatoria distinta.
+  passwordGenerica: z.string().min(8).optional(),
 });
 
 export async function GET() {
@@ -19,6 +27,7 @@ export async function GET() {
       where: { rol: "ESTUDIANTE" },
       select: {
         id: true,
+        rut: true,
         nombre: true,
         email: true,
         activo: true,
@@ -34,29 +43,48 @@ export async function GET() {
   }
 }
 
-// Crea la cuenta del estudiante sin matricularlo todavía en ningún curso;
-// la matrícula la hace el docente desde su curso (o el administrador desde
-// /api/admin/cursos/[id]/inscribir).
+// Crea (o, si el correo ya existe, deja intacta) la cuenta de cada
+// estudiante, sin matricularlo todavía en ninguna sección; la matrícula la
+// hace el docente desde su sección, o el administrador desde
+// /api/admin/secciones/[id]/inscribir. Igual que la carga del docente: si el
+// correo ya existe, NO se sobreescriben sus datos (nombre/rut), solo se
+// reporta que ya existía.
 export async function POST(req: NextRequest) {
   try {
     await requireAdministrador();
-    const body = crearEstudianteSchema.parse(await req.json());
-    const email = body.email.toLowerCase().trim();
+    const body = cargaSchema.parse(await req.json());
 
-    const existente = await prisma.user.findUnique({ where: { email } });
-    if (existente) throw new ErrorAcceso("Ya existe una cuenta con ese correo", 409);
+    const resultado = [];
 
-    const passwordTemporal = body.password ?? generarPasswordTemporal();
-    const passwordHash = await hashPassword(passwordTemporal);
+    for (const est of body.estudiantes) {
+      const email = est.email.toLowerCase().trim();
+      const rut = est.rut?.trim() || undefined;
 
-    const estudiante = await prisma.user.create({
-      data: { nombre: body.nombre, email, passwordHash, rol: "ESTUDIANTE" },
-    });
+      const existente = await prisma.user.findUnique({ where: { email } });
+      if (existente) {
+        resultado.push({ email, estado: "existente", nombre: existente.nombre, passwordTemporal: null });
+        continue;
+      }
 
-    return NextResponse.json(
-      { estudiante: { id: estudiante.id, nombre: estudiante.nombre, email: estudiante.email }, passwordTemporal },
-      { status: 201 }
-    );
+      if (rut) {
+        const rutEnUso = await prisma.user.findUnique({ where: { rut } });
+        if (rutEnUso) {
+          resultado.push({ email, estado: "omitido", motivo: `El RUT ${rut} ya pertenece a otra cuenta` });
+          continue;
+        }
+      }
+
+      const passwordTemporal = body.passwordGenerica ?? generarPasswordTemporal();
+      const passwordHash = await hashPassword(passwordTemporal);
+
+      const estudiante = await prisma.user.create({
+        data: { nombre: est.nombre, email, rut, passwordHash, rol: "ESTUDIANTE" },
+      });
+
+      resultado.push({ email, estado: "creado", nombre: estudiante.nombre, passwordTemporal });
+    }
+
+    return NextResponse.json({ resultado }, { status: 201 });
   } catch (error) {
     return manejarError(error);
   }

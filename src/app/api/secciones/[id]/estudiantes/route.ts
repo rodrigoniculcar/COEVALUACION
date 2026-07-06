@@ -7,6 +7,7 @@ import { manejarError } from "@/lib/api-helpers";
 import { generarPasswordTemporal, hashPassword } from "@/lib/passwords";
 
 const estudianteSchema = z.object({
+  rut: z.string().trim().min(3).max(20).optional(),
   nombre: z.string().min(2).max(120),
   email: z.string().email(),
   password: z.string().min(8).optional(),
@@ -48,14 +49,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     for (const est of body.estudiantes) {
       const email = est.email.toLowerCase().trim();
+      const rut = est.rut?.trim() || undefined;
       let usuario = await prisma.user.findUnique({ where: { email } });
       let passwordTemporal: string | null = null;
 
       if (!usuario) {
+        if (rut) {
+          const rutEnUso = await prisma.user.findUnique({ where: { rut } });
+          if (rutEnUso) {
+            resultado.push({ email, estado: "omitido", motivo: `El RUT ${rut} ya pertenece a otra cuenta` });
+            continue;
+          }
+        }
         passwordTemporal = est.password ?? generarPasswordTemporal();
         const passwordHash = await hashPassword(passwordTemporal);
         usuario = await prisma.user.create({
-          data: { nombre: est.nombre, email, passwordHash, rol: "ESTUDIANTE" },
+          data: { nombre: est.nombre, email, rut, passwordHash, rol: "ESTUDIANTE" },
         });
       } else if (usuario.rol !== "ESTUDIANTE") {
         resultado.push({ email, estado: "omitido", motivo: "El correo pertenece a una cuenta docente" });
