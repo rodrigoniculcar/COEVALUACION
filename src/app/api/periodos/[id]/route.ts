@@ -116,3 +116,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return manejarError(error);
   }
 }
+
+// Elimina la evaluación y, en cascada, sus equipos, evaluaciones registradas
+// y resultados calculados (ver onDelete: Cascade en el schema). Solo el
+// docente titular puede eliminarla; acción destructiva e irreversible.
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const docente = await requireDocente();
+    await requirePeriodoDelDocente(params.id, docente.id);
+
+    await prisma.periodoEvaluacion.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return manejarError(error);
+  }
+}

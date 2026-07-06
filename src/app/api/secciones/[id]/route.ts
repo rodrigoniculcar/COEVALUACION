@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUsuario } from "@/lib/session";
+import { requireUsuario, requireDocente } from "@/lib/session";
 import { requireSeccionDelDocente, requireInscripcion } from "@/lib/academico";
 import { manejarError } from "@/lib/api-helpers";
 
@@ -25,6 +25,21 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     });
 
     return NextResponse.json({ seccion });
+  } catch (error) {
+    return manejarError(error);
+  }
+}
+
+// Elimina la sección y, en cascada, su roster, evaluaciones, equipos y
+// resultados (ver onDelete: Cascade en el schema). Acción destructiva e
+// irreversible; la UI debe confirmar con el docente antes de llamarla.
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  try {
+    const docente = await requireDocente();
+    await requireSeccionDelDocente(params.id, docente.id);
+
+    await prisma.seccion.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return manejarError(error);
   }

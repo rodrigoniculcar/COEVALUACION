@@ -25,6 +25,8 @@ interface Asignatura {
 }
 
 const NUEVO_PERIODO = "__nuevo__";
+const ANIO_ACTUAL = new Date().getFullYear();
+const ANIOS_DISPONIBLES = Array.from({ length: 6 }, (_, i) => ANIO_ACTUAL - 1 + i);
 
 export default function AsignaturaHubPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,10 +34,12 @@ export default function AsignaturaHubPage() {
   const [periodosAcademicos, setPeriodosAcademicos] = useState<PeriodoAcademico[]>([]);
   const [nombre, setNombre] = useState("");
   const [periodoAcademicoId, setPeriodoAcademicoId] = useState("");
-  const [nuevoPeriodoNombre, setNuevoPeriodoNombre] = useState("");
+  const [nuevoAnio, setNuevoAnio] = useState(ANIO_ACTUAL);
+  const [nuevoSemestre, setNuevoSemestre] = useState(1);
   const [filtroPeriodo, setFiltroPeriodo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
   async function cargarTodo() {
     const [resAsig, resPA] = await Promise.all([
@@ -73,15 +77,10 @@ export default function AsignaturaHubPage() {
     setCargando(true);
 
     if (periodoId === NUEVO_PERIODO) {
-      if (!nuevoPeriodoNombre.trim()) {
-        setError("Ingresa el nombre del nuevo año-semestre (ej. 2026-1).");
-        setCargando(false);
-        return;
-      }
       const resPA = await fetch("/api/periodos-academicos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: nuevoPeriodoNombre.trim() }),
+        body: JSON.stringify({ nombre: `${nuevoAnio}-${nuevoSemestre}` }),
       });
       const dataPA = await resPA.json();
       if (!resPA.ok) {
@@ -106,7 +105,20 @@ export default function AsignaturaHubPage() {
     }
 
     setNombre("");
-    setNuevoPeriodoNombre("");
+    cargarTodo();
+  }
+
+  async function eliminarSeccion(seccionId: string, seccionNombre: string) {
+    if (
+      !confirm(
+        `¿Eliminar la sección "${seccionNombre}"? Esto borra también su roster de estudiantes, evaluaciones, equipos y resultados. Esta acción no se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+    setEliminandoId(seccionId);
+    await fetch(`/api/secciones/${seccionId}`, { method: "DELETE" });
+    setEliminandoId(null);
     cargarTodo();
   }
 
@@ -153,15 +165,33 @@ export default function AsignaturaHubPage() {
             </select>
           </div>
           {periodoAcademicoId === NUEVO_PERIODO && (
-            <div className="flex-1 min-w-[160px]">
-              <label className="label">Nombre del nuevo año-semestre</label>
-              <input
-                className="input"
-                placeholder="2026-2"
-                value={nuevoPeriodoNombre}
-                onChange={(e) => setNuevoPeriodoNombre(e.target.value)}
-              />
-            </div>
+            <>
+              <div className="w-32">
+                <label className="label">Año</label>
+                <select
+                  className="input"
+                  value={nuevoAnio}
+                  onChange={(e) => setNuevoAnio(Number(e.target.value))}
+                >
+                  {ANIOS_DISPONIBLES.map((anio) => (
+                    <option key={anio} value={anio}>
+                      {anio}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-32">
+                <label className="label">Semestre</label>
+                <select
+                  className="input"
+                  value={nuevoSemestre}
+                  onChange={(e) => setNuevoSemestre(Number(e.target.value))}
+                >
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                </select>
+              </div>
+            </>
           )}
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -186,18 +216,25 @@ export default function AsignaturaHubPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {seccionesFiltradas.map((s) => (
-              <Link
-                key={s.id}
-                href={`/docente/asignaturas/${id}/secciones/${s.id}`}
-                className="card hover:border-brand-500"
-              >
-                <h3 className="font-semibold">{s.nombre}</h3>
-                <p className="text-sm text-slate-500">{s.periodoAcademico.nombre}</p>
-                <div className="mt-3 flex gap-4 text-xs text-slate-500">
-                  <span>{s._count.inscripciones} estudiantes</span>
-                  <span>{s._count.evaluaciones} evaluaciones</span>
+              <div key={s.id} className="card hover:border-brand-500">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/docente/asignaturas/${id}/secciones/${s.id}`} className="flex-1">
+                    <h3 className="font-semibold">{s.nombre}</h3>
+                    <p className="text-sm text-slate-500">{s.periodoAcademico.nombre}</p>
+                    <div className="mt-3 flex gap-4 text-xs text-slate-500">
+                      <span>{s._count.inscripciones} estudiantes</span>
+                      <span>{s._count.evaluaciones} evaluaciones</span>
+                    </div>
+                  </Link>
+                  <button
+                    className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                    onClick={() => eliminarSeccion(s.id, s.nombre)}
+                    disabled={eliminandoId === s.id}
+                  >
+                    {eliminandoId === s.id ? "Eliminando..." : "Eliminar"}
+                  </button>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

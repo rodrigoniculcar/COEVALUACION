@@ -41,3 +41,14 @@ export async function requireAdministrador() {
   if (session.user.rol !== "ADMINISTRADOR") throw new ErrorAcceso("Requiere rol administrador", 403);
   return session.user;
 }
+
+// El catálogo de años-semestre lo puede gestionar tanto un docente (al
+// armar sus secciones) como el administrador (desde su panel).
+export async function requireDocenteOAdministrador() {
+  const session = await getSesionActual();
+  if (!session?.user) throw new ErrorAcceso("No autenticado", 401);
+  if (session.user.rol !== "DOCENTE" && session.user.rol !== "ADMINISTRADOR") {
+    throw new ErrorAcceso("Requiere rol docente o administrador", 403);
+  }
+  return session.user;
+}

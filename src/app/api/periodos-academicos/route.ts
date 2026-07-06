@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireDocente } from "@/lib/session";
+import { requireDocenteOAdministrador } from "@/lib/session";
 import { manejarError } from "@/lib/api-helpers";
 
 const crearPeriodoAcademicoSchema = z.object({
@@ -13,7 +13,7 @@ const crearPeriodoAcademicoSchema = z.object({
 // variantes de escritura del mismo periodo entre distintos docentes.
 export async function GET() {
   try {
-    await requireDocente();
+    await requireDocenteOAdministrador();
 
     const periodosAcademicos = await prisma.periodoAcademico.findMany({
       orderBy: { nombre: "desc" },
@@ -27,7 +27,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireDocente();
+    await requireDocenteOAdministrador();
     const body = crearPeriodoAcademicoSchema.parse(await req.json());
     const nombre = body.nombre.trim();
 

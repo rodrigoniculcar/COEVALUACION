@@ -14,6 +14,12 @@ interface Coevaluador {
   docente: { id: string; nombre: string; email: string };
 }
 
+interface DocenteDisponible {
+  id: string;
+  nombre: string;
+  email: string;
+}
+
 interface Evaluacion {
   id: string;
   nombre: string;
@@ -75,16 +81,24 @@ export default function EvaluacionesSeccionPage() {
 
   const [emailCoevaluador, setEmailCoevaluador] = useState<Record<string, string>>({});
   const [errorCoevaluador, setErrorCoevaluador] = useState<Record<string, string>>({});
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+
+  const [docentesDisponibles, setDocentesDisponibles] = useState<DocenteDisponible[]>([]);
+  const [pickerAbiertoId, setPickerAbiertoId] = useState<string | null>(null);
+  const [filtroDocente, setFiltroDocente] = useState("");
 
   async function cargarTodo() {
-    const [resRub, resEval] = await Promise.all([
+    const [resRub, resEval, resDoc] = await Promise.all([
       fetch("/api/rubricas"),
       fetch(`/api/secciones/${seccionId}/evaluaciones`),
+      fetch("/api/docentes"),
     ]);
     const dataRub = await resRub.json();
     const dataEval = await resEval.json();
+    const dataDoc = await resDoc.json();
     setRubricas(dataRub.rubricas ?? []);
     setEvaluaciones(dataEval.evaluaciones ?? []);
+    setDocentesDisponibles(dataDoc.docentes ?? []);
     if (!rubricaId && dataRub.rubricas?.[0]) setRubricaId(dataRub.rubricas[0].id);
   }
 
@@ -192,9 +206,9 @@ export default function EvaluacionesSeccionPage() {
     cargarTodo();
   }
 
-  async function agregarCoevaluador(evaluacionId: string) {
+  async function agregarCoevaluador(evaluacionId: string, emailDirecto?: string) {
     setErrorCoevaluador((prev) => ({ ...prev, [evaluacionId]: "" }));
-    const email = emailCoevaluador[evaluacionId]?.trim();
+    const email = (emailDirecto ?? emailCoevaluador[evaluacionId])?.trim();
     if (!email) return;
 
     const res = await fetch(`/api/periodos/${evaluacionId}/coevaluadores`, {
@@ -207,12 +221,26 @@ export default function EvaluacionesSeccionPage() {
       setErrorCoevaluador((prev) => ({ ...prev, [evaluacionId]: data.error ?? "No se pudo agregar." }));
       return;
     }
-    setEmailCoevaluador((prev) => ({ ...prev, [evaluacionId]: "" }));
+    if (!emailDirecto) setEmailCoevaluador((prev) => ({ ...prev, [evaluacionId]: "" }));
     cargarTodo();
   }
 
   async function quitarCoevaluador(evaluacionId: string, docenteId: string) {
     await fetch(`/api/periodos/${evaluacionId}/coevaluadores/${docenteId}`, { method: "DELETE" });
+    cargarTodo();
+  }
+
+  async function eliminarEvaluacion(evaluacionId: string, nombreEvaluacion: string) {
+    if (
+      !confirm(
+        `¿Eliminar la evaluación "${nombreEvaluacion}"? Esto borra también sus equipos, evaluaciones registradas y resultados calculados. Esta acción no se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+    setEliminandoId(evaluacionId);
+    await fetch(`/api/periodos/${evaluacionId}`, { method: "DELETE" });
+    setEliminandoId(null);
     cargarTodo();
   }
 
@@ -469,6 +497,13 @@ export default function EvaluacionesSeccionPage() {
                   <button className="btn-secondary" onClick={() => iniciarEdicion(p)}>
                     Editar
                   </button>
+                  <button
+                    className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                    onClick={() => eliminarEvaluacion(p.id, p.nombre)}
+                    disabled={eliminandoId === p.id}
+                  >
+                    {eliminandoId === p.id ? "Eliminando..." : "Eliminar"}
+                  </button>
                   <Link href={`/docente/asignaturas/${id}/secciones/${seccionId}/evaluaciones/${p.id}/grupos`} className="btn-secondary">
                     Equipos
                   </Link>
@@ -512,8 +547,52 @@ export default function EvaluacionesSeccionPage() {
                     <button type="button" className="btn-secondary" onClick={() => agregarCoevaluador(p.id)}>
                       Agregar coevaluador
                     </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        setPickerAbiertoId(pickerAbiertoId === p.id ? null : p.id);
+                        setFiltroDocente("");
+                      }}
+                    >
+                      {pickerAbiertoId === p.id ? "Ocultar docentes" : "Ver docentes"}
+                    </button>
                   </div>
                   {errorCoevaluador[p.id] && <p className="mt-1 text-xs text-red-600">{errorCoevaluador[p.id]}</p>}
+
+                  {pickerAbiertoId === p.id && (
+                    <div className="mt-2 rounded-lg border border-slate-200 p-2">
+                      <input
+                        className="input"
+                        placeholder="Buscar por nombre o correo..."
+                        value={filtroDocente}
+                        onChange={(e) => setFiltroDocente(e.target.value)}
+                      />
+                      <ul className="mt-2 flex max-h-40 flex-col gap-1 overflow-y-auto">
+                        {docentesDisponibles
+                          .filter((d) => !p.docentesEvaluadores.some((c) => c.docente.id === d.id))
+                          .filter((d) =>
+                            `${d.nombre} ${d.email}`.toLowerCase().includes(filtroDocente.toLowerCase())
+                          )
+                          .map((d) => (
+                            <li key={d.id} className="flex items-center justify-between text-sm">
+                              <span>
+                                {d.nombre} <span className="text-slate-400">({d.email})</span>
+                              </span>
+                              <button
+                                type="button"
+                                className="text-xs text-brand-600 hover:underline"
+                                onClick={() => agregarCoevaluador(p.id, d.email)}
+                              >
+                                Agregar
+                              </button>
+                            </li>
+                          ))}
+                        {docentesDisponibles.filter((d) => !p.docentesEvaluadores.some((c) => c.docente.id === d.id))
+                          .length === 0 && <li className="text-sm text-slate-500">No hay otros docentes disponibles.</li>}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </>
             )}

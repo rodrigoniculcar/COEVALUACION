@@ -107,3 +107,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return manejarError(error);
   }
 }
+
+// La rúbrica es una biblioteca pública: cualquier docente puede eliminarla,
+// salvo que ya esté asignada a alguna evaluación (borrarla rompería esa
+// referencia y el cálculo de notas ya hecho).
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    await requireDocente();
+    const rubrica = await prisma.rubrica.findUnique({ where: { id: params.id } });
+    if (!rubrica) throw new ErrorAcceso("Rúbrica no encontrada", 404);
+
+    const enUso = await prisma.periodoEvaluacion.findFirst({ where: { rubricaId: rubrica.id } });
+    if (enUso) {
+      throw new ErrorAcceso(
+        "No puedes eliminar una rúbrica que ya está asignada a una evaluación. Elimina primero esa evaluación o asígnale otra rúbrica.",
+        400
+      );
+    }
+
+    await prisma.rubrica.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return manejarError(error);
+  }
+}

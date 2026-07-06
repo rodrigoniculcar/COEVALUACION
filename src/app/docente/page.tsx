@@ -16,6 +16,7 @@ export default function DocenteDashboard() {
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
   async function cargarAsignaturas() {
     const res = await fetch("/api/asignaturas");
@@ -43,6 +44,20 @@ export default function DocenteDashboard() {
     }
     setNombre("");
     setCodigo("");
+    cargarAsignaturas();
+  }
+
+  async function eliminarAsignatura(id: string, nombreAsignatura: string) {
+    if (
+      !confirm(
+        `¿Eliminar la asignatura "${nombreAsignatura}"? Esto borra también todas sus secciones, estudiantes matriculados, evaluaciones, equipos y resultados. Esta acción no se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+    setEliminandoId(id);
+    await fetch(`/api/asignaturas/${id}`, { method: "DELETE" });
+    setEliminandoId(null);
     cargarAsignaturas();
   }
 
@@ -78,13 +93,24 @@ export default function DocenteDashboard() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {asignaturas.map((a) => (
-            <Link key={a.id} href={`/docente/asignaturas/${a.id}`} className="card hover:border-brand-500">
-              <h2 className="font-semibold">{a.nombre}</h2>
-              <p className="text-sm text-slate-500">Código: {a.codigo}</p>
-              <div className="mt-3 flex gap-4 text-xs text-slate-500">
-                <span>{a._count.secciones} secciones</span>
+            <div key={a.id} className="card hover:border-brand-500">
+              <div className="flex items-start justify-between gap-2">
+                <Link href={`/docente/asignaturas/${a.id}`} className="flex-1">
+                  <h2 className="font-semibold">{a.nombre}</h2>
+                  <p className="text-sm text-slate-500">Código: {a.codigo}</p>
+                  <div className="mt-3 flex gap-4 text-xs text-slate-500">
+                    <span>{a._count.secciones} secciones</span>
+                  </div>
+                </Link>
+                <button
+                  className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                  onClick={() => eliminarAsignatura(a.id, a.nombre)}
+                  disabled={eliminandoId === a.id}
+                >
+                  {eliminandoId === a.id ? "Eliminando..." : "Eliminar"}
+                </button>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

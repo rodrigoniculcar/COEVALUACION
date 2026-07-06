@@ -39,6 +39,8 @@ export default function RubricasPage() {
   const [criterios, setCriterios] = useState<Criterio[]>([criterioVacio(), criterioVacio()]);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null);
 
   async function cargarRubricas() {
     const res = await fetch("/api/rubricas");
@@ -81,6 +83,21 @@ export default function RubricasPage() {
     setEscalaMax(5);
     setCriterios([criterioVacio(), criterioVacio()]);
     setError(null);
+  }
+
+  async function eliminarRubrica(id: string, nombreRubrica: string) {
+    if (!confirm(`¿Eliminar la rúbrica "${nombreRubrica}"? Esta acción no se puede deshacer.`)) return;
+    setErrorEliminar(null);
+    setEliminandoId(id);
+    const res = await fetch(`/api/rubricas/${id}`, { method: "DELETE" });
+    setEliminandoId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErrorEliminar(data.error ?? "No se pudo eliminar la rúbrica.");
+      return;
+    }
+    if (editandoId === id) cancelarEdicion();
+    cargarRubricas();
   }
 
   async function onSubmit(e: FormEvent) {
@@ -244,6 +261,8 @@ export default function RubricasPage() {
         </div>
       </form>
 
+      {errorEliminar && <p className="text-sm text-red-600">{errorEliminar}</p>}
+
       <div className="flex flex-col gap-4">
         {rubricas.map((r) => (
           <div key={r.id} className="card">
@@ -254,9 +273,18 @@ export default function RubricasPage() {
                   (escala {r.escalaMin}-{r.escalaMax}) · creada por {r.creador.nombre}
                 </span>
               </h2>
-              <button className="text-xs text-brand-600 hover:underline" onClick={() => iniciarEdicion(r)}>
-                Editar
-              </button>
+              <div className="flex shrink-0 gap-3">
+                <button className="text-xs text-brand-600 hover:underline" onClick={() => iniciarEdicion(r)}>
+                  Editar
+                </button>
+                <button
+                  className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                  onClick={() => eliminarRubrica(r.id, r.nombre)}
+                  disabled={eliminandoId === r.id}
+                >
+                  {eliminandoId === r.id ? "Eliminando..." : "Eliminar"}
+                </button>
+              </div>
             </div>
             <table className="mt-3 w-full text-sm">
               <thead>
