@@ -45,6 +45,12 @@ model User {
   // El administrador puede desactivar una cuenta (docente o estudiante) sin
   // borrarla; una cuenta inactiva no puede iniciar sesión (ver src/lib/auth.ts).
   activo       Boolean  @default(true)
+  // Foto de perfil como data URL (base64), redimensionada y comprimida en
+  // el navegador antes de subirla. La app no usa almacenamiento de
+  // archivos externo, así que se guarda directo en la base de datos; nunca
+  // se incluye en la sesión/JWT (solo se lee vía GET /api/perfil) para no
+  // inflar la cookie de sesión.
+  fotoUrl      String?
   createdAt    DateTime @default(now())
 
   asignaturas   Asignatura[]  @relation("DocenteAsignaturas")

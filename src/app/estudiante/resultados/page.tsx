@@ -234,7 +234,7 @@ export default function ResultadosEstudiantePage() {
                         <PolarGrid />
                         <PolarAngleAxis dataKey="criterio" tick={{ fontSize: 11 }} />
                         <PolarRadiusAxis domain={[0, 100]} />
-                        <Radar name="Autoevaluación" dataKey="Autoevaluación" stroke="#3457d5" fill="#3457d5" fillOpacity={0.15} />
+                        <Radar name="Autoevaluación" dataKey="Autoevaluación" stroke="#f2790f" fill="#f2790f" fillOpacity={0.15} />
                         <Radar name="Compañeros" dataKey="Compañeros" stroke="#10b981" fill="#10b981" fillOpacity={0.15} />
                         <Radar name="Docente" dataKey="Docente" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} />
                         <Legend />

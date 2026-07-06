@@ -29,6 +29,10 @@ export async function GET() {
     );
 
     const pendientesPorPeriodo = new Map<string, number>();
+    // Si el estudiante no tiene equipo asignado en una evaluación abierta,
+    // no puede rendirla — el docente todavía no lo agregó a ningún grupo de
+    // esa evaluación específica (los grupos son propios de cada evaluación).
+    const gruposAsignados = new Set<string>();
     if (idsAbiertos.length > 0) {
       const [misGrupos, misEvaluaciones] = await Promise.all([
         prisma.miembroGrupo.findMany({
@@ -42,6 +46,7 @@ export async function GET() {
       ]);
 
       for (const mg of misGrupos) {
+        gruposAsignados.add(mg.grupo.periodoId);
         const objetivos = mg.grupo.miembros.map((m) => m.estudianteId);
         const completados = misEvaluaciones.filter(
           (e) => e.periodoId === mg.grupo.periodoId && objetivos.includes(e.evaluadoId)
@@ -57,6 +62,7 @@ export async function GET() {
         evaluaciones: insc.seccion.evaluaciones.map((e) => ({
           ...e,
           pendientes: e.estado === "ABIERTO" ? (pendientesPorPeriodo.get(e.id) ?? 0) : 0,
+          tieneGrupo: e.estado !== "ABIERTO" || gruposAsignados.has(e.id),
         })),
       },
     }));

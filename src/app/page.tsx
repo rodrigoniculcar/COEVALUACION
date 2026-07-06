@@ -6,6 +6,11 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-8 px-6 text-center">
+      <div className="flex items-center justify-center gap-2 text-2xl font-bold tracking-tight">
+        <span className="text-brand-500">Duoc</span>
+        <span className="text-navy-600">UC</span>
+        <span className="text-slate-400">· Coevaluación</span>
+      </div>
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Autoevaluación y Coevaluación grupal</h1>
         <p className="mt-3 text-slate-600">

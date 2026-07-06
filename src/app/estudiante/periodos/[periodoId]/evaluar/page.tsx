@@ -35,12 +35,17 @@ export default function EvaluarEstudiantePage() {
   const [puntajes, setPuntajes] = useState<Record<string, number>>({});
   const [comentario, setComentario] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   async function cargar() {
     const res = await fetch(`/api/estudiante/periodos/${periodoId}/pendientes`);
     const data = await res.json();
+    if (!res.ok) {
+      setErrorCarga(data.error ?? "No se pudo cargar la evaluación.");
+      return;
+    }
     setDatos(data);
   }
 
@@ -100,6 +105,15 @@ export default function EvaluarEstudiantePage() {
     setMensaje("¡Evaluación enviada!");
     setObjetivoActivo(null);
     cargar();
+  }
+
+  if (errorCarga) {
+    return (
+      <div className="flex flex-col gap-4">
+        <VolverLink href="/estudiante" texto="Volver a mis secciones" />
+        <div className="card border-amber-200 bg-amber-50 text-amber-800">{errorCarga}</div>
+      </div>
+    );
   }
 
   if (!datos) return <p className="text-slate-500">Cargando...</p>;

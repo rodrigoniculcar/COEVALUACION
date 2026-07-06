@@ -8,6 +8,7 @@ import { VolverLink } from "@/components/VolverLink";
 interface PeriodoAcademico {
   id: string;
   nombre: string;
+  actual?: boolean;
 }
 
 interface Seccion {
@@ -37,6 +38,7 @@ export default function AsignaturaHubPage() {
   const [nuevoAnio, setNuevoAnio] = useState(ANIO_ACTUAL);
   const [nuevoSemestre, setNuevoSemestre] = useState(1);
   const [filtroPeriodo, setFiltroPeriodo] = useState("");
+  const [mostrarAnteriores, setMostrarAnteriores] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
@@ -60,14 +62,23 @@ export default function AsignaturaHubPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const hayPeriodoActual = useMemo(
+    () => (asignatura?.secciones ?? []).some((s) => s.periodoAcademico.actual),
+    [asignatura]
+  );
+
   const seccionesFiltradas = useMemo(() => {
     if (!asignatura) return [];
-    if (!filtroPeriodo.trim()) return asignatura.secciones;
+    let secciones = asignatura.secciones;
+    if (hayPeriodoActual && !mostrarAnteriores) {
+      secciones = secciones.filter((s) => s.periodoAcademico.actual);
+    }
+    if (!filtroPeriodo.trim()) return secciones;
     const q = filtroPeriodo.trim().toLowerCase();
-    return asignatura.secciones.filter(
+    return secciones.filter(
       (s) => s.periodoAcademico.nombre.toLowerCase().includes(q) || s.nombre.toLowerCase().includes(q)
     );
-  }, [asignatura, filtroPeriodo]);
+  }, [asignatura, filtroPeriodo, hayPeriodoActual, mostrarAnteriores]);
 
   async function crearSeccion(e: FormEvent) {
     e.preventDefault();
@@ -201,17 +212,34 @@ export default function AsignaturaHubPage() {
       </form>
 
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold">Secciones ({asignatura.secciones.length})</h2>
-          <input
-            className="input max-w-xs"
-            placeholder="Buscar por año-semestre o nombre..."
-            value={filtroPeriodo}
-            onChange={(e) => setFiltroPeriodo(e.target.value)}
-          />
+          <div className="flex flex-wrap items-center gap-4">
+            {hayPeriodoActual && (
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={mostrarAnteriores}
+                  onChange={(e) => setMostrarAnteriores(e.target.checked)}
+                />
+                Ver años-semestre anteriores
+              </label>
+            )}
+            <input
+              className="input max-w-xs"
+              placeholder="Buscar por año-semestre o nombre..."
+              value={filtroPeriodo}
+              onChange={(e) => setFiltroPeriodo(e.target.value)}
+            />
+          </div>
         </div>
 
-        {seccionesFiltradas.length === 0 ? (
+        {seccionesFiltradas.length === 0 && asignatura.secciones.length > 0 && !mostrarAnteriores && hayPeriodoActual ? (
+          <p className="text-slate-500">
+            No hay secciones en el año-semestre actual. Activa &quot;Ver años-semestre anteriores&quot; para
+            revisar las de otros periodos.
+          </p>
+        ) : seccionesFiltradas.length === 0 ? (
           <p className="text-slate-500">No hay secciones que coincidan con la búsqueda.</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

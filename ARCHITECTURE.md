@@ -34,7 +34,9 @@ Implementado en `prisma/schema.prisma`. Entidades principales:
 
 - **User** — cuenta única con `rol` (`ADMINISTRADOR` | `DOCENTE` | `ESTUDIANTE`). Un mismo modelo de usuario
   para los tres roles simplifica la autenticación; el rol determina qué puede hacer (ver sección de
-  seguridad).
+  seguridad). `fotoUrl` guarda la foto de perfil como data URL base64 (redimensionada/comprimida a 256×256 en
+  el navegador antes de subirla vía `PATCH /api/perfil`); nunca se incluye en la sesión/JWT — se consulta por
+  separado con `GET /api/perfil` — para no inflar la cookie de sesión de NextAuth.
 - **Asignatura** — pertenece a un docente (`docenteId`), quien la dicta/coordina. Es reutilizable a través de
   distintos años-semestre: un mismo docente puede tener muchas asignaturas, y cada asignatura puede tener
   varias secciones a su cargo.
@@ -42,7 +44,10 @@ Implementado en `prisma/schema.prisma`. Entidades principales:
   plataforma (no por docente) para evitar variantes de escritura del mismo periodo; cualquier docente puede
   crear uno nuevo si no existe (`upsert` por `nombre`). El campo `actual` marca cuál es el semestre vigente
   (solo uno a la vez); lo gestiona el administrador (`PATCH /api/periodos-academicos/[id]`, no cada docente
-  por separado) y el panel de resultados del estudiante lo usa para decidir qué mostrar por defecto.
+  por separado). El mismo patrón se repite en toda la app: por defecto solo se muestran secciones/resultados
+  del año-semestre marcado `actual`, con un checkbox "Ver anteriores" para revelar el resto — implementado en
+  el panel de resultados del estudiante (`/estudiante/resultados`), el dashboard de secciones del estudiante
+  (`/estudiante`) y el listado de secciones de una asignatura del docente (`/docente/asignaturas/[id]`).
 - **Seccion** — instancia concreta de una `Asignatura` ofrecida en un `PeriodoAcademico` específico, con su
   propio roster **fijo** de estudiantes (`Inscripcion`). Un mismo docente puede tener varias secciones a
   cargo de la misma asignatura en el mismo semestre (ej. Sección A y Sección B), y la lista de secciones se
@@ -58,7 +63,10 @@ Implementado en `prisma/schema.prisma`. Entidades principales:
   equipo completamente distintas en cada evaluación (p. ej. Equipos 1-5 en el Corte 1 y una reorganización
   distinta con otros nombres en el Corte 2); por eso el equipo se crea y se filtra dentro de la evaluación
   (`/docente/asignaturas/[id]/secciones/[seccionId]/evaluaciones/[evalId]/grupos`,
-  `src/app/api/periodos/[id]/grupos/route.ts`).
+  `src/app/api/periodos/[id]/grupos/route.ts`). Un estudiante matriculado en una sección pero sin equipo
+  asignado en una evaluación abierta específica no ve los datos de esa evaluación en su dashboard
+  (`/estudiante`) — solo un aviso pidiéndole que solicite a su docente que lo agregue a un grupo
+  (`tieneGrupo` en `GET /api/estudiante/secciones`).
 - **Rubrica** — **biblioteca pública entre docentes**: cualquier docente puede verla, asignarla a sus propias
   evaluaciones y editarla, sin importar quién la creó (`creadorId` es solo atribución/historial, no una
   restricción de acceso). Define una escala (`escalaMin`–`escalaMax`, admite `escalaMin = 0`). Editar los
@@ -282,6 +290,10 @@ PDF).
 - **Cambio de contraseña**: `PATCH /api/perfil/password` permite a cualquier usuario autenticado (docente o
   estudiante) cambiar su contraseña temporal por una propia. Se recomienda como buena práctica exigir este
   cambio en el primer login (no forzado en este MVP, pero el endpoint ya existe para agregarlo fácilmente).
+- **Ruta `/perfil` compartida entre los tres roles**: `src/middleware.ts` la incluye en el `matcher` sin un
+  `if` de redirección por rol (a diferencia de `/admin`, `/docente`, `/estudiante`), por lo que cualquier
+  sesión válida puede entrar — el layout (`src/app/perfil/layout.tsx`) arma el menú de navegación según el
+  rol de la sesión activa.
 - **Nunca auto-registro de estudiantes**: `/api/auth/registro` crea exclusivamente cuentas `DOCENTE`; los
   estudiantes solo obtienen credenciales cuando el docente los carga a una sección, evitando que cualquiera
   se autoasigne el rol estudiante o se inscriba en secciones ajenas.
