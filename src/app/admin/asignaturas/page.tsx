@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { EditableText } from "@/components/EditableText";
 
 interface Seccion {
   id: string;
@@ -72,6 +74,26 @@ export default function AdminAsignaturasPage() {
     }
 
     setMensaje("Estudiante matriculado.");
+    cargar();
+  }
+
+  async function renombrarAsignatura(id: string, nombre: string) {
+    const res = await fetch(`/api/admin/asignaturas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre }),
+    });
+    if (!res.ok) throw new Error("No se pudo renombrar");
+    cargar();
+  }
+
+  async function cambiarCodigo(id: string, codigo: string) {
+    const res = await fetch(`/api/admin/asignaturas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codigo }),
+    });
+    if (!res.ok) throw new Error("No se pudo cambiar el código");
     cargar();
   }
 
@@ -151,8 +173,16 @@ export default function AdminAsignaturasPage() {
           <tbody>
             {asignaturas.map((a) => (
               <tr key={a.id} className="border-t border-slate-100 align-top">
-                <td className="py-2">{a.nombre}</td>
-                <td>{a.codigo}</td>
+                <td className="py-2">
+                  <EditableText value={a.nombre} onSave={(nuevo) => renombrarAsignatura(a.id, nuevo)}>
+                    <Link href={`/admin/asignaturas/${a.id}`} className="font-medium text-brand-600 hover:underline">
+                      {a.nombre}
+                    </Link>
+                  </EditableText>
+                </td>
+                <td>
+                  <EditableText value={a.codigo} onSave={(nuevo) => cambiarCodigo(a.id, nuevo)} />
+                </td>
                 <td className="text-slate-500">{a.docente.nombre}</td>
                 <td>
                   {a.secciones.length === 0 ? (

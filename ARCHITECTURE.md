@@ -279,6 +279,19 @@ PDF).
   (`requireInscripcion`) antes de leer o escribir. Para registrar una evaluación de tipo `DOCENTE` basta con
   ser el titular **o** un coevaluador agregado (`requireAccesoEvaluacionDocente`), pero solo el titular puede
   editar la configuración de la evaluación, sus equipos o su lista de coevaluadores.
+- **Vista de administrador "como si fuera el docente"**: bajo `/admin/docentes/[id]`, `/admin/asignaturas/[id]`,
+  `/admin/secciones/[seccionId]` y `/admin/evaluaciones/[id]` el administrador puede recorrer el espacio de
+  trabajo completo de cualquier docente (asignaturas → secciones → roster/evaluaciones → panel de resultados)
+  y descargar los mismos reportes (Excel/PDF), pero en **solo lectura**: estas rutas admin-only llaman a
+  endpoints paralelos (`/api/admin/docentes/[id]`, `/api/admin/asignaturas/[id]`, `/api/admin/secciones/[id]`,
+  `/api/admin/evaluaciones/[id]/resultados`, `/api/admin/estudiantes/[id]`) que solo exigen `requireAdministrador()`
+  — sin los formularios de creación/edición/eliminación que sí tiene el docente en sus propias páginas
+  (`/docente/...`), para no arriesgar que el administrador borre o reconfigure por error el trabajo de un
+  docente mientras solo quería revisarlo o sacar un reporte.
+- **Corrección de errores de tipeo**: el administrador puede renombrar el nombre de un docente/estudiante
+  (`PATCH /api/admin/usuarios/[id]`), o el nombre/código de una asignatura y el nombre de una sección
+  (`PATCH /api/admin/asignaturas/[id]`, `PATCH /api/admin/secciones/[id]`), mediante edición in-place
+  (`src/components/EditableText.tsx`) en las tablas y encabezados del panel admin.
 - **Rúbricas como biblioteca pública**: a diferencia del resto del modelo (aislado por docente), cualquier
   cuenta con rol `DOCENTE` puede leer, asignar y editar cualquier rúbrica — es una decisión de diseño
   explícita para permitir reutilización entre docentes de la misma institución. Editar los criterios o la

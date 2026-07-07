@@ -37,7 +37,29 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ estudiantes });
+    // "Cursos este semestre": secciones (vía inscripción) en el año-semestre
+    // marcado "actual" (o, si ninguno lo está, el más reciente por nombre).
+    const periodosAcademicos = await prisma.periodoAcademico.findMany({ orderBy: { nombre: "desc" } });
+    const periodoActual = periodosAcademicos.find((p) => p.actual) ?? periodosAcademicos[0] ?? null;
+
+    let cursosPorEstudiante = new Map<string, number>();
+    if (periodoActual) {
+      const inscripciones = await prisma.inscripcion.findMany({
+        where: { seccion: { periodoAcademicoId: periodoActual.id } },
+        select: { estudianteId: true },
+      });
+      cursosPorEstudiante = new Map();
+      for (const insc of inscripciones) {
+        cursosPorEstudiante.set(insc.estudianteId, (cursosPorEstudiante.get(insc.estudianteId) ?? 0) + 1);
+      }
+    }
+
+    const estudiantesConCursos = estudiantes.map((e) => ({
+      ...e,
+      cursosEsteSemestre: cursosPorEstudiante.get(e.id) ?? 0,
+    }));
+
+    return NextResponse.json({ estudiantes: estudiantesConCursos, periodoActualNombre: periodoActual?.nombre ?? null });
   } catch (error) {
     return manejarError(error);
   }

@@ -30,13 +30,37 @@ export async function GET() {
         nombre: true,
         email: true,
         activo: true,
+        ultimoLogin: true,
         createdAt: true,
         _count: { select: { asignaturas: true } },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ docentes });
+    // Desglose de secciones por año-semestre por docente: se agrega en JS
+    // (en vez de un groupBy de Prisma, que no soporta agrupar por un campo
+    // de una relación anidada) ya que el volumen de secciones es acotado.
+    const secciones = await prisma.seccion.findMany({
+      select: {
+        asignatura: { select: { docenteId: true } },
+        periodoAcademico: { select: { nombre: true } },
+      },
+    });
+    const porDocente = new Map<string, Map<string, number>>();
+    for (const s of secciones) {
+      const mapaPeriodos = porDocente.get(s.asignatura.docenteId) ?? new Map<string, number>();
+      mapaPeriodos.set(s.periodoAcademico.nombre, (mapaPeriodos.get(s.periodoAcademico.nombre) ?? 0) + 1);
+      porDocente.set(s.asignatura.docenteId, mapaPeriodos);
+    }
+
+    const docentesConSecciones = docentes.map((d) => ({
+      ...d,
+      seccionesPorPeriodo: Array.from(porDocente.get(d.id) ?? new Map())
+        .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+        .sort((a, b) => b.nombre.localeCompare(a.nombre)),
+    }));
+
+    return NextResponse.json({ docentes: docentesConSecciones });
   } catch (error) {
     return manejarError(error);
   }

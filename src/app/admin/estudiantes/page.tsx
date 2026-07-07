@@ -1,6 +1,8 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { EditableText } from "@/components/EditableText";
 
 interface Estudiante {
   id: string;
@@ -8,6 +10,7 @@ interface Estudiante {
   nombre: string;
   email: string;
   activo: boolean;
+  cursosEsteSemestre: number;
   _count: { inscripciones: number };
 }
 
@@ -19,8 +22,22 @@ interface ResultadoCarga {
   motivo?: string;
 }
 
+interface ResultadoReseteoMasivo {
+  id: string;
+  email: string;
+  estado: "restablecido" | "omitido";
+  passwordTemporal: string | null;
+}
+
 export default function AdminEstudiantesPage() {
   const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
+  const [periodoActualNombre, setPeriodoActualNombre] = useState<string | null>(null);
+  const [soloActivos, setSoloActivos] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [passwordMasiva, setPasswordMasiva] = useState("");
+  const [restableciendoMasivo, setRestableciendoMasivo] = useState(false);
+  const [resultadoMasivo, setResultadoMasivo] = useState<ResultadoReseteoMasivo[] | null>(null);
+
   const [textoCarga, setTextoCarga] = useState("");
   const [passwordGenerica, setPasswordGenerica] = useState("");
   const [resultado, setResultado] = useState<ResultadoCarga[] | null>(null);
@@ -37,11 +54,37 @@ export default function AdminEstudiantesPage() {
     const res = await fetch("/api/admin/estudiantes");
     const data = await res.json();
     setEstudiantes(data.estudiantes ?? []);
+    setPeriodoActualNombre(data.periodoActualNombre ?? null);
   }
 
   useEffect(() => {
     cargar();
   }, []);
+
+  const estudiantesFiltrados = useMemo(
+    () => (soloActivos ? estudiantes.filter((e) => e.activo) : estudiantes),
+    [estudiantes, soloActivos]
+  );
+
+  const todosSeleccionados =
+    estudiantesFiltrados.length > 0 && estudiantesFiltrados.every((e) => seleccionados.has(e.id));
+
+  function toggleSeleccionTodos() {
+    if (todosSeleccionados) {
+      setSeleccionados(new Set());
+    } else {
+      setSeleccionados(new Set(estudiantesFiltrados.map((e) => e.id)));
+    }
+  }
+
+  function toggleSeleccion(id: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Cada línea: "RUT, Nombre completo, correo@ejemplo.com" (el RUT es
   // opcional: "Nombre completo, correo@ejemplo.com" también es válido).
@@ -146,12 +189,46 @@ export default function AdminEstudiantesPage() {
     setPasswordRestablecida({ email: data.email, password: data.passwordTemporal });
   }
 
+  async function restablecerSeleccionados() {
+    if (seleccionados.size === 0) return;
+    setRestableciendoMasivo(true);
+    setResultadoMasivo(null);
+    const res = await fetch("/api/admin/usuarios/restablecer-password-masivo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ids: Array.from(seleccionados),
+        passwordGenerica: passwordMasiva.trim() || undefined,
+      }),
+    });
+    const data = await res.json();
+    setRestableciendoMasivo(false);
+
+    if (!res.ok) {
+      setError(data.error ?? "No se pudo restablecer las contraseñas seleccionadas.");
+      return;
+    }
+
+    setResultadoMasivo(data.resultado);
+    setSeleccionados(new Set());
+  }
+
   async function toggleActivo(id: string, activo: boolean) {
     await fetch(`/api/admin/usuarios/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ activo: !activo }),
     });
+    cargar();
+  }
+
+  async function renombrar(id: string, nombre: string) {
+    const res = await fetch(`/api/admin/usuarios/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre }),
+    });
+    if (!res.ok) throw new Error("No se pudo renombrar");
     cargar();
   }
 
@@ -254,26 +331,104 @@ export default function AdminEstudiantesPage() {
         </div>
       )}
 
+      {resultadoMasivo && (
+        <div className="card border-amber-300 bg-amber-50">
+          <p className="text-sm font-medium text-amber-800">
+            Copia y comparte las contraseñas nuevas ahora: no se podrán volver a mostrar.
+          </p>
+          <table className="mt-3 w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500">
+                <th className="py-1">Correo</th>
+                <th>Estado</th>
+                <th>Contraseña nueva</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resultadoMasivo.map((r) => (
+                <tr key={r.id} className="border-t border-amber-200">
+                  <td className="py-1">{r.email}</td>
+                  <td>{r.estado === "restablecido" ? "Restablecida" : "Omitido"}</td>
+                  <td className="font-mono">{r.passwordTemporal ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="card">
-        <h2 className="font-semibold">Estudiantes registrados ({estudiantes.length})</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold">
+            Estudiantes ({estudiantesFiltrados.length}
+            {soloActivos ? ` de ${estudiantes.length}` : ""})
+            {periodoActualNombre && (
+              <span className="ml-2 text-sm font-normal text-slate-500">
+                · Cursos este semestre: {periodoActualNombre}
+              </span>
+            )}
+          </h2>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" checked={soloActivos} onChange={(e) => setSoloActivos(e.target.checked)} />
+            Mostrar solo activos
+          </label>
+        </div>
+
+        {seleccionados.size > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-brand-200 bg-brand-50 p-3">
+            <span className="text-sm font-medium text-brand-700">{seleccionados.size} seleccionado(s)</span>
+            <input
+              className="input max-w-[220px]"
+              placeholder="Contraseña genérica (opcional)"
+              value={passwordMasiva}
+              onChange={(e) => setPasswordMasiva(e.target.value)}
+            />
+            <button
+              className="btn-primary"
+              onClick={restablecerSeleccionados}
+              disabled={restableciendoMasivo}
+            >
+              {restableciendoMasivo ? "Restableciendo..." : "Restablecer contraseña de seleccionados"}
+            </button>
+          </div>
+        )}
+
         <table className="mt-3 w-full text-sm">
           <thead>
             <tr className="text-left text-slate-500">
-              <th className="py-1">RUT</th>
+              <th className="py-1">
+                <input type="checkbox" checked={todosSeleccionados} onChange={toggleSeleccionTodos} />
+              </th>
+              <th>RUT</th>
               <th>Nombre</th>
               <th>Correo</th>
               <th>Secciones inscritas</th>
+              <th>Cursos este semestre</th>
               <th>Estado</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {estudiantes.map((est) => (
+            {estudiantesFiltrados.map((est) => (
               <tr key={est.id} className="border-t border-slate-100">
-                <td className="py-2 text-slate-500">{est.rut ?? "—"}</td>
-                <td>{est.nombre}</td>
+                <td className="py-2">
+                  <input
+                    type="checkbox"
+                    checked={seleccionados.has(est.id)}
+                    onChange={() => toggleSeleccion(est.id)}
+                  />
+                </td>
+                <td className="text-slate-500">{est.rut ?? "—"}</td>
+                <td>
+                  <EditableText value={est.nombre} onSave={(nuevo) => renombrar(est.id, nuevo)}>
+                    <Link href={`/admin/estudiantes/${est.id}`} className="font-medium text-brand-600 hover:underline">
+                      {est.nombre}
+                    </Link>
+                  </EditableText>
+                </td>
                 <td className="text-slate-500">{est.email}</td>
                 <td>{est._count.inscripciones}</td>
+                <td>{est.cursosEsteSemestre}</td>
                 <td>
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${

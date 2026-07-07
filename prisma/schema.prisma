@@ -51,6 +51,10 @@ model User {
   // se incluye en la sesión/JWT (solo se lee vía GET /api/perfil) para no
   // inflar la cookie de sesión.
   fotoUrl      String?
+  // Fecha del último inicio de sesión exitoso (nunca de intentos fallidos),
+  // actualizada en lib/auth.ts. Usado por el panel de administración para
+  // mostrar la última actividad de cada docente.
+  ultimoLogin  DateTime?
   createdAt    DateTime @default(now())
 
   asignaturas   Asignatura[]  @relation("DocenteAsignaturas")

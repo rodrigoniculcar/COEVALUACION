@@ -1,6 +1,8 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { EditableText } from "@/components/EditableText";
 
 interface Docente {
   id: string;
@@ -8,7 +10,14 @@ interface Docente {
   nombre: string;
   email: string;
   activo: boolean;
+  ultimoLogin: string | null;
   _count: { asignaturas: number };
+  seccionesPorPeriodo: { nombre: string; cantidad: number }[];
+}
+
+function formatearFecha(iso: string | null) {
+  if (!iso) return "Nunca";
+  return new Date(iso).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" });
 }
 
 interface ResultadoCarga {
@@ -155,6 +164,16 @@ export default function AdminDocentesPage() {
     cargar();
   }
 
+  async function renombrar(id: string, nombre: string) {
+    const res = await fetch(`/api/admin/usuarios/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre }),
+    });
+    if (!res.ok) throw new Error("No se pudo renombrar");
+    cargar();
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -262,18 +281,38 @@ export default function AdminDocentesPage() {
               <th className="py-1">RUT</th>
               <th>Nombre</th>
               <th>Correo</th>
-              <th>Asignaturas</th>
+              <th>Secciones por semestre</th>
+              <th>Último ingreso</th>
               <th>Estado</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {docentes.map((d) => (
-              <tr key={d.id} className="border-t border-slate-100">
+              <tr key={d.id} className="border-t border-slate-100 align-top">
                 <td className="py-2 text-slate-500">{d.rut ?? "—"}</td>
-                <td>{d.nombre}</td>
+                <td>
+                  <EditableText value={d.nombre} onSave={(nuevo) => renombrar(d.id, nuevo)}>
+                    <Link href={`/admin/docentes/${d.id}`} className="font-medium text-brand-600 hover:underline">
+                      {d.nombre}
+                    </Link>
+                  </EditableText>
+                </td>
                 <td className="text-slate-500">{d.email}</td>
-                <td>{d._count.asignaturas}</td>
+                <td>
+                  {d.seccionesPorPeriodo.length === 0 ? (
+                    <span className="text-slate-400">Sin secciones</span>
+                  ) : (
+                    <ul className="flex flex-col gap-0.5 text-xs text-slate-500">
+                      {d.seccionesPorPeriodo.map((p) => (
+                        <li key={p.nombre}>
+                          {p.nombre}: {p.cantidad} sección{p.cantidad === 1 ? "" : "es"}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </td>
+                <td className="text-slate-500">{formatearFecha(d.ultimoLogin)}</td>
                 <td>
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -284,6 +323,9 @@ export default function AdminDocentesPage() {
                   </span>
                 </td>
                 <td className="flex flex-col items-end gap-1 py-2 text-right">
+                  <Link href={`/admin/docentes/${d.id}`} className="text-xs text-brand-600 hover:underline">
+                    Ver perfil
+                  </Link>
                   <button
                     className="text-xs text-brand-600 hover:underline"
                     onClick={() => toggleActivo(d.id, d.activo)}
